@@ -10,7 +10,7 @@ const columns = [
       { label: "About", href: "/about" },
       { label: "Why Denalix", href: "/about" },
       { label: "Products", href: "/products" },
-      { label: "Contact", href: "/#contact" },
+      { label: "Contact", href: "/contact" },
     ],
   },
   {
@@ -25,7 +25,7 @@ const columns = [
   {
     title: "Resources",
     links: [
-      { label: "How It Works", href: "/#how-it-works" },
+      { label: "How It Works", href: "/how-it-works" },
       { label: "Simple Guide", href: "#" },
       { label: "Careers", href: "#" },
     ],

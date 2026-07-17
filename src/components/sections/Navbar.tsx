@@ -51,7 +51,7 @@ export function Navbar() {
           </nav>
 
           <div className="hidden lg:block">
-            <GlowButton href="/#contact" className="!px-5 !py-2.5 text-xs">
+            <GlowButton href="/contact" className="!px-5 !py-2.5 text-xs">
               {hero.primaryCta}
             </GlowButton>
           </div>
@@ -86,7 +86,7 @@ export function Navbar() {
                   </Link>
                 ))}
                 <div className="mt-2">
-                  <GlowButton href="/#contact" className="w-full justify-center" >
+                  <GlowButton href="/contact" className="w-full justify-center" >
                     {hero.primaryCta}
                   </GlowButton>
                 </div>

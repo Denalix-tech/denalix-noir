@@ -81,8 +81,8 @@ const V_TRUNK_START = 30;
 const V_BRANCH_START = 170;
 const V_BRANCH_GAP = 90;
 const V_ICON_OFFSET = 56;
-const V_STAGE_MS = 1050;
-const V_PAUSE_MS = 1300;
+const V_STAGE_MS = 800;
+const V_PAUSE_MS = 950;
 
 const vStages = stageDefs.map((s, i) => ({
   ...s,
@@ -304,8 +304,8 @@ const H_TRUNK_START = 40;
 const H_BRANCH_START = 300;
 const H_BRANCH_GAP = 160;
 const H_ICON_OFFSET = 95;
-const H_STAGE_MS = 1800;
-const H_PAUSE_MS = 2200;
+const H_STAGE_MS = 1400;
+const H_PAUSE_MS = 1700;
 
 const hStages = stageDefs.map((s, i) => ({
   ...s,

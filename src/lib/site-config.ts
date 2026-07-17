@@ -19,9 +19,9 @@ export const audiences = [
 export const navLinks = [
   { label: "Services", href: "/services" },
   { label: "Products", href: "/products" },
-  { label: "How It Works", href: "/#how-it-works" },
+  { label: "How It Works", href: "/how-it-works" },
   { label: "About", href: "/about" },
-  { label: "Contact", href: "/#contact" },
+  { label: "Contact", href: "/contact" },
 ];
 
 export const hero = {
@@ -116,7 +116,7 @@ export const whereToStart = {
       description:
         "See how we move from a business problem to a clear roadmap, working system, launch, and ongoing improvement.",
       cta: "See the process",
-      href: "/#how-it-works",
+      href: "/how-it-works",
       icon: "route",
     },
     {
