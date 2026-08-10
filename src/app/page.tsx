@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Navbar } from "@/components/sections/Navbar";
 import { Hero } from "@/components/sections/Hero";
 import { AudienceGrid } from "@/components/sections/AudienceGrid";
@@ -10,11 +11,20 @@ import { Process } from "@/components/sections/Process";
 import { CTASection } from "@/components/sections/CTASection";
 import { Footer } from "@/components/sections/Footer";
 import { ScrollSpyNav } from "@/components/ui/ScrollSpyNav";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { homepageSchema } from "@/lib/schema";
+
+// Title and description come from the root layout defaults, which already
+// carry the homepage copy; only the self-referencing canonical is added here.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 export default function Home() {
   return (
     <>
       <Navbar />
+      <JsonLd data={homepageSchema()} />
       <div className="flex flex-1 flex-col">
         <Hero />
         <div className="mx-auto flex w-full max-w-[1400px] flex-1 xl:px-6">

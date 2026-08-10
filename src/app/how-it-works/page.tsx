@@ -7,10 +7,24 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { RevealGroup, RevealItem, Reveal } from "@/components/ui/Reveal";
 import { RevealImage } from "@/components/ui/RevealImage";
 import { howItWorks } from "@/lib/site-config";
+import { pageOpenGraph, pageTwitter } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: `How It Works — Denalix Tech`,
-  description: howItWorks.body,
+  title: "Software Consulting Process",
+  description:
+    "See how Denalix Tech moves from an operational problem to a practical roadmap, working software, launch, and ongoing improvement.",
+  alternates: { canonical: "/how-it-works" },
+  openGraph: pageOpenGraph({
+    title: "Software Consulting Process | Denalix Tech",
+    description:
+      "See how Denalix Tech moves from an operational problem to a practical roadmap, working software, launch, and ongoing improvement.",
+    path: "/how-it-works",
+  }),
+  twitter: pageTwitter({
+    title: "Software Consulting Process | Denalix Tech",
+    description:
+      "See how Denalix Tech moves from an operational problem to a practical roadmap, working software, launch, and ongoing improvement.",
+  }),
 };
 
 export default function HowItWorksPage() {
@@ -20,6 +34,7 @@ export default function HowItWorksPage() {
       <main className="flex-1 pt-28 pb-8">
         <section className="container-px mx-auto max-w-7xl">
           <SectionHeading
+            as="h1"
             eyebrow={howItWorks.eyebrow}
             title={howItWorks.heading}
             description={howItWorks.body}

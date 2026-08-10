@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Sparkles, SearchCheck, Map, Compass, TrendingUp, Rocket, MapPin, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Sparkles, SearchCheck, Map, Compass, TrendingUp, Rocket, MapPin, type LucideIcon } from "lucide-react";
 import { Navbar } from "@/components/sections/Navbar";
 import { Footer } from "@/components/sections/Footer";
 import { CTASection } from "@/components/sections/CTASection";
@@ -8,6 +9,7 @@ import { RevealImage } from "@/components/ui/RevealImage";
 import { RevealGroup, RevealItem } from "@/components/ui/Reveal";
 import BorderGlow from "@/components/ui/BorderGlow";
 import { servicesPage, digitalizeFirst } from "@/lib/site-config";
+import { pageOpenGraph, pageTwitter } from "@/lib/seo";
 
 const iconMap: Record<string, LucideIcon> = {
   sparkles: Sparkles,
@@ -20,8 +22,19 @@ const iconMap: Record<string, LucideIcon> = {
 };
 
 export const metadata: Metadata = {
-  title: `Services — Denalix Tech`,
+  // Root layout appends "| Denalix Tech".
+  title: "AI Automation & Custom Software Services",
   description: servicesPage.body,
+  alternates: { canonical: "/services" },
+  openGraph: pageOpenGraph({
+    title: "AI Automation & Custom Software Services | Denalix Tech",
+    description: servicesPage.body,
+    path: "/services",
+  }),
+  twitter: pageTwitter({
+    title: "AI Automation & Custom Software Services | Denalix Tech",
+    description: servicesPage.body,
+  }),
 };
 
 export default function ServicesPage() {
@@ -30,7 +43,12 @@ export default function ServicesPage() {
       <Navbar />
       <main className="flex-1 pt-28 pb-8">
         <section className="container-px mx-auto max-w-7xl">
-          <SectionHeading eyebrow={servicesPage.eyebrow} title={servicesPage.heading} description={servicesPage.body} />
+          <SectionHeading
+            as="h1"
+            eyebrow={servicesPage.eyebrow}
+            title={servicesPage.heading}
+            description={servicesPage.body}
+          />
         </section>
 
         <section className="container-px mx-auto mt-20 max-w-7xl space-y-20 sm:mt-28 sm:space-y-28">
@@ -40,7 +58,11 @@ export default function ServicesPage() {
                 <RevealImage src={pillar.image} alt={pillar.title} aspect="aspect-[4/3]" />
               </div>
               <div>
-                <h3 className="font-display text-2xl font-semibold text-white sm:text-3xl">{pillar.title}</h3>
+                <h3 className="font-display text-2xl font-semibold text-white sm:text-3xl">
+                  <Link href={pillar.href} className="underline-offset-4 hover:underline">
+                    {pillar.title}
+                  </Link>
+                </h3>
                 <p className="mt-4 text-base leading-relaxed text-muted sm:text-lg">{pillar.description}</p>
                 <ul className="mt-6 space-y-3">
                   {pillar.bullets.map((bullet) => (
@@ -50,6 +72,13 @@ export default function ServicesPage() {
                     </li>
                   ))}
                 </ul>
+                <Link
+                  href={pillar.href}
+                  className="mt-7 inline-flex items-center gap-2 text-sm font-medium text-accent transition-colors hover:text-white"
+                >
+                  Explore {pillar.title}
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
               </div>
             </div>
           ))}

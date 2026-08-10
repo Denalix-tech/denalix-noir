@@ -7,10 +7,24 @@ import { GlowButton } from "@/components/ui/GlowButton";
 import { Reveal, RevealGroup, RevealItem } from "@/components/ui/Reveal";
 import BorderGlow from "@/components/ui/BorderGlow";
 import { productsPage, site } from "@/lib/site-config";
+import { pageOpenGraph, pageTwitter } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: `Products — Denalix Tech`,
-  description: productsPage.body,
+  title: "Index: AI Search Visibility Platform",
+  description:
+    "Explore Index, Denalix Tech's in-development platform for technical SEO audits, AI search visibility tracking, and actionable search improvements.",
+  alternates: { canonical: "/products" },
+  openGraph: pageOpenGraph({
+    title: "Index: AI Search Visibility Platform | Denalix Tech",
+    description:
+      "Explore Index, Denalix Tech's in-development platform for technical SEO audits, AI search visibility tracking, and actionable search improvements.",
+    path: "/products",
+  }),
+  twitter: pageTwitter({
+    title: "Index: AI Search Visibility Platform | Denalix Tech",
+    description:
+      "Explore Index, Denalix Tech's in-development platform for technical SEO audits, AI search visibility tracking, and actionable search improvements.",
+  }),
 };
 
 export default function ProductsPage() {
@@ -22,6 +36,7 @@ export default function ProductsPage() {
       <main className="flex-1 pt-28 pb-8">
         <section className="container-px mx-auto max-w-7xl">
           <SectionHeading
+            as="h1"
             eyebrow={productsPage.eyebrow}
             title={productsPage.heading}
             description={productsPage.body}
@@ -58,7 +73,14 @@ export default function ProductsPage() {
                     preview
                   </span>
                 </div>
-                <div className="mt-6 grid grid-cols-2 gap-4">
+
+                {/* Index is still in development; these figures are mock-ups.
+                    Labelled explicitly so they cannot read as real results. */}
+                <p className="mt-4 rounded-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-100">
+                  Illustrative product preview — sample data
+                </p>
+
+                <div className="mt-4 grid grid-cols-2 gap-4">
                   {product.metrics.map((m) => (
                     <div key={m.label} className="rounded-sm border border-white/10 bg-white/[0.03] p-4">
                       <div className="font-display text-2xl font-semibold text-white">{m.value}</div>

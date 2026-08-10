@@ -1,10 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
+import dynamic from "next/dynamic";
 import { Rocket, Building2, HeartPulse, Store } from "lucide-react";
 import { GlowButton } from "@/components/ui/GlowButton";
-import { ParticleNetwork } from "@/components/effects/ParticleNetwork";
-import DotField from "@/components/effects/DotField";
 import SplitText from "@/components/text/SplitText";
 import BlurText from "@/components/text/BlurText";
 import TextType from "@/components/text/TextType";
@@ -16,6 +15,22 @@ const audiences = [
   { icon: HeartPulse, label: "Healthcare Teams" },
   { icon: Building2, label: "Growing Companies" },
 ];
+
+/*
+ * Decorative canvas backdrops sitting behind -z-10. Deferring them keeps the
+ * homepage LCP path — the H1 and its copy — free of two canvas animation
+ * libraries. No placeholder: the section already has its own gradient behind
+ * these, so there is nothing to fill in.
+ *
+ * The H1's own text animations (SplitText/BlurText) stay eager on purpose;
+ * lazy-loading them would delay the LCP element itself.
+ */
+const DotField = dynamic(() => import("@/components/effects/DotField"), { ssr: false });
+
+const ParticleNetwork = dynamic(
+  () => import("@/components/effects/ParticleNetwork").then((m) => m.ParticleNetwork),
+  { ssr: false }
+);
 
 export function Hero() {
   return (
@@ -55,7 +70,7 @@ export function Hero() {
 
           <h1 className="font-display text-4xl font-semibold leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-7xl">
             <SplitText
-              text="Modernize. Automate."
+              text={hero.h1Lead}
               tag="span"
               splitType="words"
               duration={0.9}
@@ -65,7 +80,7 @@ export function Hero() {
             />
             <br />
             <SplitText
-              text="Scale with confidence."
+              text={hero.h1Trail}
               tag="span"
               splitType="words"
               duration={0.9}
@@ -76,13 +91,18 @@ export function Hero() {
             />
           </h1>
 
+          {/* Plain-language positioning under the brand H1. */}
+          <p className="font-display mx-auto mt-6 text-lg font-medium tracking-tight text-white/60 sm:text-xl">
+            {hero.supporting}
+          </p>
+
           <BlurText
             text={hero.body}
             animateBy="words"
             direction="top"
             delay={18}
             stepDuration={0.3}
-            className="mx-auto mt-7 max-w-2xl justify-center text-balance text-lg leading-relaxed text-muted sm:text-xl"
+            className="mx-auto mt-5 max-w-2xl justify-center text-balance text-lg leading-relaxed text-muted sm:text-xl"
           />
 
           <motion.div

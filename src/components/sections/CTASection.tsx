@@ -1,12 +1,54 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { site, finalCta } from "@/lib/site-config";
 import { GlowButton } from "@/components/ui/GlowButton";
 import { Reveal } from "@/components/ui/Reveal";
-import MagicRings from "@/components/effects/MagicRings";
-import MetallicPaint from "@/components/effects/MetallicPaint";
 import { Mail } from "lucide-react";
+
+/**
+ * Static stand-in for the animated ring field. Doubles as the reduced-motion
+ * treatment and as the placeholder while MagicRings loads, so the panel looks
+ * designed at every stage rather than empty.
+ */
+function StaticGlow() {
+  return (
+    <div
+      className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full"
+      style={{ background: "radial-gradient(circle, rgba(242,184,75,0.22), transparent 70%)" }}
+    />
+  );
+}
+
+/** Static brand mark shown until the shader version is ready. */
+function StaticMark() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-full w-full" aria-hidden="true" focusable="false">
+      <path
+        d="M1.5 18.2 8.6 4.8a1 1 0 0 1 1.77 0l2.55 4.83 2.2-2.98a1 1 0 0 1 1.65.06L22.5 18.2H1.5Z"
+        fill="#f5f5f5"
+      />
+    </svg>
+  );
+}
+
+/*
+ * These two are the heaviest client dependencies on the site — MagicRings
+ * pulls in three.js, which was landing in the initial bundle of 11 of 14
+ * prerendered routes because CTASection appears on nearly every page. Both are
+ * purely decorative and sit behind -z-10, so deferring them costs nothing
+ * visually and takes three.js off the critical path.
+ */
+const MagicRings = dynamic(() => import("@/components/effects/MagicRings"), {
+  ssr: false,
+  loading: () => <StaticGlow />,
+});
+
+const MetallicPaint = dynamic(() => import("@/components/effects/MetallicPaint"), {
+  ssr: false,
+  loading: () => <StaticMark />,
+});
 
 const statusLabels = [
   { text: "workflow automated", top: "8%", left: "6%", delay: "0s" },
@@ -41,10 +83,7 @@ export function CTASection() {
           <div className="panel-strong grain relative isolate overflow-hidden rounded-md px-8 py-16 text-center sm:px-16 sm:py-24">
             <div className="pointer-events-none absolute inset-0 -z-10">
               {reducedMotion ? (
-                <div
-                  className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                  style={{ background: "radial-gradient(circle, rgba(242,184,75,0.22), transparent 70%)" }}
-                />
+                <StaticGlow />
               ) : (
                 <MagicRings
                   color="#f2b84b"

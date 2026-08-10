@@ -8,10 +8,24 @@ import { RevealImage } from "@/components/ui/RevealImage";
 import { RevealGroup, RevealItem } from "@/components/ui/Reveal";
 import BorderGlow from "@/components/ui/BorderGlow";
 import { aboutPage, whyDenalix } from "@/lib/site-config";
+import { pageOpenGraph, pageTwitter } from "@/lib/seo";
+
+const ABOUT_TITLE = "About Denalix Tech | AI & Software Consulting";
+const ABOUT_DESCRIPTION =
+  "Learn how Denalix Tech approaches AI automation, custom software, dashboards, and operational systems with business clarity first.";
 
 export const metadata: Metadata = {
-  title: `About — Denalix Tech`,
-  description: aboutPage.body,
+  // `absolute` bypasses the "%s | Denalix Tech" template — this title already
+  // carries the brand, and the template would repeat it.
+  title: { absolute: ABOUT_TITLE },
+  description: ABOUT_DESCRIPTION,
+  alternates: { canonical: "/about" },
+  openGraph: pageOpenGraph({
+    title: ABOUT_TITLE,
+    description: ABOUT_DESCRIPTION,
+    path: "/about",
+  }),
+  twitter: pageTwitter({ title: ABOUT_TITLE, description: ABOUT_DESCRIPTION }),
 };
 
 export default function AboutPage() {
@@ -21,7 +35,12 @@ export default function AboutPage() {
       <main className="flex-1 pt-28 pb-8">
         <section className="container-px mx-auto max-w-7xl">
           <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
-            <SectionHeading eyebrow={aboutPage.eyebrow} title={aboutPage.heading} description={aboutPage.body} />
+            <SectionHeading
+              as="h1"
+              eyebrow={aboutPage.eyebrow}
+              title={aboutPage.heading}
+              description={aboutPage.body}
+            />
             <RevealImage src={aboutPage.image} alt="The Denalix Tech team shaking hands after a partnership" aspect="aspect-[4/3]" />
           </div>
         </section>

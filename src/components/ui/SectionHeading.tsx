@@ -8,9 +8,22 @@ type SectionHeadingProps = {
   description?: string;
   align?: "left" | "center";
   className?: string;
+  /**
+   * Heading level to render. Pages use `h1` for their single top heading and
+   * leave the default `h2` everywhere else. The class list is identical for
+   * both, so typography, spacing, and the Reveal animation are unchanged.
+   */
+  as?: "h1" | "h2";
 };
 
-export function SectionHeading({ eyebrow, title, description, align = "left", className }: SectionHeadingProps) {
+export function SectionHeading({
+  eyebrow,
+  title,
+  description,
+  align = "left",
+  className,
+  as: Heading = "h2",
+}: SectionHeadingProps) {
   return (
     <div className={clsx("max-w-2xl", align === "center" && "mx-auto text-center", className)}>
       {eyebrow && (
@@ -22,9 +35,9 @@ export function SectionHeading({ eyebrow, title, description, align = "left", cl
         </Reveal>
       )}
       <Reveal delay={0.08}>
-        <h2 className="mt-4 font-display text-3xl font-semibold leading-tight text-white sm:text-4xl lg:text-[2.75rem]">
+        <Heading className="mt-4 font-display text-3xl font-semibold leading-tight text-white sm:text-4xl lg:text-[2.75rem]">
           {title}
-        </h2>
+        </Heading>
       </Reveal>
       {description && (
         <Reveal delay={0.14}>

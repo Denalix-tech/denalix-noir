@@ -20,11 +20,18 @@ export const navLinks = [
   { label: "Services", href: "/services" },
   { label: "Products", href: "/products" },
   { label: "How It Works", href: "/how-it-works" },
+  { label: "Blog", href: "/blog" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ];
 
 export const hero = {
+  // The visible H1, split across two lines to match the hero's type treatment.
+  h1Lead: "Modernize. Automate.",
+  h1Trail: "Scale with confidence.",
+  // Keyword-bearing line rendered directly under the H1, so the page still
+  // states plainly what Denalix Tech does.
+  supporting: "AI automation and custom software that help businesses scale",
   heading: "Modernize. Automate. Scale with confidence.",
   body: "Denalix Tech helps startups, local businesses, healthcare teams, and growing companies turn manual chaos into digital clarity. We find the operational leaks, build the right systems, and create the technology foundation needed to grow.",
   primaryCta: "Book a Consultation",
@@ -125,18 +132,11 @@ export const whereToStart = {
       description:
         "Not sure what automation, dashboards, AI tools, or custom software mean in practice? Start with short guides written for business readers.",
       cta: "Read simple guides",
-      href: "#",
+      href: "/blog",
       icon: "book-open",
     },
-    {
-      label: "Careers",
-      title: "Work with a practical technology team",
-      description:
-        "Learn what kind of collaborators, builders, and communicators Denalix Tech is interested in as the company grows.",
-      cta: "View careers",
-      href: "#",
-      icon: "users",
-    },
+    // A Careers card lived here pointing at "#". Removed rather than pointed
+    // somewhere invented; restore it when a real careers page exists.
     {
       label: "About",
       title: "Meet the thinking behind Denalix Tech",
@@ -166,7 +166,7 @@ export const whyDenalix = {
 
 export const howItWorks = {
   eyebrow: "How It Works",
-  heading: "A simple plan before we build",
+  heading: "From operational audit to a working software system",
   body: "We start with the request, understand the business, create a practical roadmap, then build and improve the right solution in stages.",
   image: "/images/roadmap-planning.jpg",
   steps: [
@@ -205,9 +205,22 @@ export const finalCta = {
 
 export const servicesPage = {
   eyebrow: "Services",
-  heading: "Practical systems for every part of the business",
-  body: "From messy spreadsheets to a full operating system — we design and build the tools your team needs to run smoother, scale faster, and stop losing time to manual work.",
+  heading: "AI automation and custom software services",
+  body: "Automate manual workflows, connect business tools, build custom software, create reporting dashboards, and develop GIS solutions with Denalix Tech.",
   pillars: [
+    {
+      title: "AI Automation Consulting",
+      description:
+        "We start with the business process, then identify where AI genuinely reduces repetitive work — with human review and clear success criteria around it.",
+      bullets: [
+        "Workflow assessment and prioritized roadmap",
+        "AI-assisted drafting, classification, and routing",
+        "Human review points and access controls",
+        "Staged rollout against real work",
+      ],
+      image: "/images/team-presentation.jpg",
+      href: "/services/ai-automation-consulting",
+    },
     {
       title: "Automation & Workflows",
       description:
@@ -219,6 +232,7 @@ export const servicesPage = {
         "Notifications and status updates",
       ],
       image: "/images/team-collaboration.jpg",
+      href: "/services/workflow-automation",
     },
     {
       title: "Dashboards & Reporting",
@@ -231,6 +245,7 @@ export const servicesPage = {
         "Alerts for the metrics that matter",
       ],
       image: "/images/dashboard-analytics.jpg",
+      href: "/services/dashboards-reporting",
     },
     {
       title: "Custom Software & Systems",
@@ -243,6 +258,7 @@ export const servicesPage = {
         "Ongoing support after launch",
       ],
       image: "/images/roadmap-planning.jpg",
+      href: "/services/custom-software-development",
     },
     {
       title: "GIS & Location Intelligence",
@@ -255,13 +271,14 @@ export const servicesPage = {
         "Location analytics layered onto your dashboards",
       ],
       image: "/images/operations-warehouse.jpg",
+      href: "/services/gis-mapping",
     },
   ],
 };
 
 export const aboutPage = {
   eyebrow: "About Denalix Tech",
-  heading: "Business clarity first. Technology second.",
+  heading: "A practical AI and software consulting partner",
   body: "Denalix Tech is a small, practical technology partner for startups, local businesses, healthcare teams, and growing companies. We do not lead with buzzwords — we lead with the business problem, then bring the right technology to solve it.",
   image: "/images/team-handshake.jpg",
   mission: {
@@ -274,7 +291,7 @@ export const aboutPage = {
 
 export const productsPage = {
   eyebrow: "Products",
-  heading: "We build software for clients. We are also building our own.",
+  heading: "Index: AI search visibility for growing businesses",
   body: "Alongside client work, Denalix Tech is developing Index — an AI agent that helps businesses stay visible in both traditional search and the new generation of AI answer engines.",
   product: {
     status: "In Development",
