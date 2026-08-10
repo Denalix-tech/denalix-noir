@@ -73,6 +73,28 @@ if (!tokenHash) {
 // this app's callback and carries the `type` the callback branches on.
 const link = `${origin}/admin/auth/callback?token_hash=${tokenHash}&type=recovery`;
 
+/**
+ * Confirms the chosen origin actually serves the callback route.
+ *
+ * Worth checking, because the failure is silent and confusing: a link to a
+ * deployment without `/admin/auth/callback` just 404s, and the obvious conclusion
+ * is that recovery is broken rather than that the branch is unmerged. A missing
+ * token is a 307 back to the login page — proof the route is live.
+ */
+async function callbackIsReachable(base: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${base}/admin/auth/callback`, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(5000),
+    });
+    return response.status !== 404;
+  } catch {
+    return false;
+  }
+}
+
+const reachable = await callbackIsReachable(origin);
+
 console.log(`
 Recovery link for ${email}
 
@@ -84,3 +106,16 @@ Valid for one hour, single use. It signs that account in and sends it straight t
 This is an account-takeover credential — send it the way you would send a
 password, and only to the person who owns the account.
 `);
+
+if (!reachable) {
+  console.warn(`WARNING: ${origin} does not serve /admin/auth/callback, so this link will 404.
+
+  * Targeting production? The recovery routes ship with this branch — deploy it
+    first, or the link has nothing to land on.
+  * Testing locally? Start the app on port 3000 and re-run with --local:
+        npm run dev
+        npm run recovery-link -- ${email} --local
+
+Nothing was consumed; generate another link whenever you are ready.
+`);
+}
