@@ -1,0 +1,6 @@
+{
+  "name": "denalix-blog-mcp",
+  "private": true,
+  "type": "module",
+  "description": "Local MCP server exposing Denalix blog tooling to Claude Code. Marks this directory as ESM so the .ts files here resolve as modules; the Next app itself stays CommonJS-flavoured."
+}

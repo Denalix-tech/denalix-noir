@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "denalix-blog": {
+      "command": "npx",
+      "args": ["tsx", "mcp/server.ts"]
+    }
+  }
+}
