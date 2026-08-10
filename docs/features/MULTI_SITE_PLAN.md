@@ -2,7 +2,29 @@
 
 **Goal.** From Claude Code (and optionally ChatGPT later), say *"draft a post about X for `<site>`"* and have it land as a **draft** in that site's own backend, with an on-brand cover and correct internal links — across three sites today (`denalixtech` plus two client sites) and any number later.
 
-**Status.** Not started. This document is the plan to execute; it is not a description of current behavior. For what exists today, see [`PUBLISHING_BLOGS.md`](PUBLISHING_BLOGS.md).
+**Status — executed 2026-08-09, except Phase 6.**
+
+| Phase | State |
+| --- | --- |
+| 0 — Pre-flight | ⚠️ **Partial.** Committed (4 commits). **Merge, deploy, checklist, and the apex 307→308 remain yours to do.** |
+| 1 — Extract tools | ✅ Done |
+| 2 — Brand + link targets as data | ✅ Done |
+| 3 — Site registry | ✅ Done |
+| 4 — Per-site Supabase access | ✅ Done |
+| 5 — `site` param + guardrails | ✅ Done |
+| 6 — Onboard the two client sites | ⏸ **Blocked** — needs each client's Supabase project, brand tokens, and link targets. Runbook: [`ONBOARD_A_SITE.md`](ONBOARD_A_SITE.md) |
+| 7 — Docs | ✅ Done |
+| 12 — ChatGPT access | ⏸ Deferred by design |
+
+Phases 1–5 were executed as a single refactor rather than five, because they
+rewrite the same lines of `tools.ts`; splitting them would have meant writing the
+file three times to reach a transient state nothing consumes. Verification was
+unchanged: byte-identical cover output, term-extraction parity with the old inline
+logic, a real create/delete round-trip, `tsc --noEmit`, and ESLint.
+
+This document is kept for the decisions in §2 and the runbooks in §10 and §12. For
+how the system behaves now, read [`PUBLISHING_BLOGS.md`](PUBLISHING_BLOGS.md); to
+add a site, read [`ONBOARD_A_SITE.md`](ONBOARD_A_SITE.md).
 
 ---
 

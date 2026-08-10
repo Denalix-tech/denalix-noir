@@ -9,10 +9,10 @@ intentions. Every claim is tied to a source file in
 [§10 Where each behavior lives](#10-where-each-behavior-lives). When any of those
 files change, update this document in the same commit.
 
-**Scope:** this covers publishing to `denalixtech.com`, the one site the system
-serves today. Extending it to multiple sites — including client sites — is planned
-work, specified in [`MULTI_SITE_PLAN.md`](MULTI_SITE_PLAN.md). Nothing in that plan
-is built yet, so everything below is accurate as written.
+**Scope:** the drafting tools are **multi-site** — every content tool takes an
+explicit `site` key, and `denalixtech` is currently the only site registered. To
+add another, follow [`ONBOARD_A_SITE.md`](ONBOARD_A_SITE.md). The architecture and
+the reasoning behind it are in [`MULTI_SITE_PLAN.md`](MULTI_SITE_PLAN.md).
 
 ---
 
@@ -85,22 +85,28 @@ appear to have been written today.
 `mcp/server.ts` is a local MCP server registered in `.mcp.json`, so Claude Code
 picks it up automatically. **Restart Claude Code once** after pulling it in.
 
-Ask in plain language, for example:
+Ask in plain language, naming the site:
 
-> Draft a post on cutting manual data entry in a construction back office.
-> Check the slug first, suggest internal links, generate a cover image, and
-> create it as a draft.
+> Draft a post for denalixtech on cutting manual data entry in a construction
+> back office. Check the slug first, suggest internal links, generate a cover
+> image, and create it as a draft.
 
-Six tools back that:
+Seven tools back that:
 
 | Tool | What it does for you |
 | --- | --- |
-| `list_posts` | Existing posts + slugs, so you don't duplicate a topic |
-| `check_slug` | Format validity and availability, with a corrected suggestion |
-| `get_service_map` | The five service pages, their audiences, problems and deliverables |
-| `suggest_internal_links` | Which service pages a draft should link to, and the phrase that motivates each |
-| `generate_cover_image` | Renders a 1200×630 brand cover, uploads it, returns URL + alt text |
+| `list_sites` | Which sites you can publish to. Start here if unsure of the key |
+| `list_posts` | Existing posts + slugs on that site, so you don't duplicate a topic |
+| `check_slug` | Format validity and availability **on that site**, with a corrected suggestion |
+| `get_link_targets` | That site's commercial pages, their audiences, problems and deliverables |
+| `suggest_internal_links` | Which of those pages a draft should link to, and the phrase that motivates each |
+| `generate_cover_image` | Renders a 1200×630 cover **in that site's brand**, uploads it, returns URL + alt text |
 | `create_draft` | Creates a **draft**, validated by the same schema the editor uses |
+
+**Every content tool requires an explicit `site`.** There is no default and no
+fuzzy matching — a mistyped key fails with the valid keys listed rather than
+writing to the wrong site. Each response echoes the site it resolved, so check
+that line before trusting the rest.
 
 **There is no publish tool, on purpose.** `create_draft` hard-codes
 `status: 'draft'` and nothing in the server can change it. AI-assisted drafts
@@ -155,7 +161,7 @@ write down the literal sentence someone would type into Google. If you can't,
 the post isn't ready.
 
 The queries worth targeting are the ones your buyers already have. Run
-`get_service_map` in Claude Code — every service page carries an `audience` and
+`get_link_targets` in Claude Code — every service page carries an `audience` and
 a list of `problems` written in customer language. Those problem statements are
 query sources. For example, `workflow-automation` lists:
 
@@ -325,7 +331,9 @@ your market, or being accountable for a claim, is deliberately yours.
 | Step | Automated? | By what |
 | --- | --- | --- |
 | Keyword / query selection | ❌ **No** | You, outside the app. No keyword or Search Console tooling exists here |
-| Checking a topic isn't already covered | ✅ Yes | `list_posts` |
+| **Choosing which site to post to** | ❌ **No, by design** | You, as an explicit `site` argument. No default, no inference |
+| Catching a mistyped site key | ✅ Yes | Exact-match resolution; fails listing valid keys |
+| Checking a topic isn't already covered | ✅ Yes | `list_posts` (per site) |
 | Drafting the body | ⚙️ Assisted | Claude Code via MCP; a human must review it |
 | Fact-checking the draft | ❌ **No** | You. This is the whole reason there is no publish tool |
 | Slug generation from the title | ✅ Yes | Editor, for new posts only |
@@ -357,6 +365,11 @@ your market, or being accountable for a claim, is deliberately yours.
 
 The failure modes that actually happen, roughly in order of how easily they slip
 through.
+
+**Check the site in every response.** The drafting tools hold the service-role
+key for every registered site, so the one place a mistake is expensive is the
+target. Each response opens with the resolved `site` — key, name, and origin.
+Read that line before you read anything else, and read it again before publishing.
 
 **Never put the brand in a title.** The layout appends `| Denalix Tech`. Typing
 it yourself produces `… | Denalix Tech | Denalix Tech` and burns SERP width.
@@ -467,7 +480,12 @@ Update this document when any of these change.
 | Article layout, H1, cover | `src/components/blog/PostArticle.tsx` |
 | Reading time | `src/lib/blog/reading-time.ts` |
 | Service pages (internal-link targets) | `src/lib/services-data.ts` |
-| MCP tools | `mcp/server.ts`, `mcp/lib.ts`, `mcp/cover-image.ts` |
+| MCP tool surface | `mcp/tools.ts` |
+| MCP transport + wiring | `mcp/server.ts` |
+| Site registry, resolution, credentials | `mcp/sites.ts`, `mcp/sites.config.ts` |
+| Per-site brand tokens | `mcp/brand.ts` |
+| Cover rendering | `mcp/cover-image.ts` |
+| Supabase access for the MCP server | `mcp/adapters/supabase.ts` |
 | Schema, RLS, storage policies | `supabase/migrations/` |
 | Page copy and metadata briefs | `docs/seo/SEO_CONTENT_AND_METADATA.md` |
 

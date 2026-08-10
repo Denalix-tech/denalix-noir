@@ -59,12 +59,13 @@ environment settings for preview and production deployments.
 
 ### 3. Run the migration
 
-There are two migrations, and they must run **in order**:
+There are three migrations, and they must run **in filename order**:
 
 | File | What it adds |
 | --- | --- |
 | `20260808063425_create_blog.sql` | `profiles` and `posts`, constraints, indexes, `updated_at` triggers, RLS policies, the `post_authors` view, and the `blog-images` bucket |
 | `20260808182114_add_owner_role.sql` | the `owner` role, `is_owner()`, owner-gated profile writes, and a trigger that refuses to remove the last owner |
+| `20260809212929_add_post_source.sql` | the `source` column, which marks AI-assisted drafts in the admin list |
 
 Using the Supabase CLI:
 
@@ -208,20 +209,29 @@ client drives the server; nothing here calls the API.
 
 ### Tools
 
+Every content tool takes an explicit `site` key — the server is multi-site, so
+there is no default target.
+
 | Tool | Purpose |
 | --- | --- |
-| `list_posts` | Existing posts, so a topic or slug isn't duplicated |
-| `check_slug` | Format validity + availability, with a suggested fix |
-| `get_service_map` | The five service pages, their problems and deliverables |
-| `suggest_internal_links` | Which service pages a draft should link to, and why |
-| `generate_cover_image` | Renders a 1200×630 brand cover, uploads it, returns URL + alt |
+| `list_sites` | Which sites can be published to, and their public origins |
+| `list_posts` | Existing posts on a site, so a topic or slug isn't duplicated |
+| `check_slug` | Format validity + availability on that site, with a suggested fix |
+| `get_link_targets` | A site's commercial pages, their audiences and problems |
+| `suggest_internal_links` | Which of those pages a draft should link to, and why |
+| `generate_cover_image` | Renders a 1200×630 cover in that site's brand, uploads it, returns URL + alt |
 | `create_draft` | Creates a **draft** — validated by the same schema the editor uses |
+
+Sites live in [`mcp/sites.config.ts`](mcp/sites.config.ts) (committed, no
+secrets); credentials resolve from `.env.local` as `SITE_<KEY>_SUPABASE_URL` and
+`SITE_<KEY>_SERVICE_ROLE_KEY`. To add one, follow
+[`docs/features/ONBOARD_A_SITE.md`](docs/features/ONBOARD_A_SITE.md).
 
 ### The workflow
 
-1. In Claude Code: *"Draft a post about automating patient intake for a healthcare
-   client. Check the slug, generate a cover, and create it as a draft."*
-2. The draft lands in **`/admin/posts`** with an **AI-assisted** badge.
+1. In Claude Code: *"Draft a post about automating patient intake for
+   denalixtech. Check the slug, generate a cover, and create it as a draft."*
+2. The draft lands in that site's **`/admin/posts`** with an **AI-assisted** badge.
 3. You read it, edit it, and publish. Select several drafts and use
    **Approve & publish** to clear a batch.
 
@@ -244,6 +254,12 @@ If you later want photographic art, that needs a paid image API (and a new key);
 
 The server talks to Supabase with the **service-role key**, so it bypasses RLS. It runs
 locally over stdio, launched by your editor. **Never deploy it or expose it on a port.**
+
+Being multi-site raises the stakes: one process holds the service-role key for
+*every* configured site. That is why site resolution is strict — exact key match
+after trimming and case-folding, no fuzzy matching, no default site — and why
+every tool response echoes the site it resolved, so a wrong target is visible
+before anything else happens.
 
 ---
 

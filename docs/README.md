@@ -10,7 +10,8 @@ is the bug.
 | Document | What it is |
 | --- | --- |
 | [`features/PUBLISHING_BLOGS.md`](features/PUBLISHING_BLOGS.md) | How to publish SEO-optimized posts: field limits, the writing playbook, what SEO is automatic, what is not automated, and the pitfalls. **Start here.** |
-| [`features/MULTI_SITE_PLAN.md`](features/MULTI_SITE_PLAN.md) | Plan to extend publishing across multiple sites, including client sites. **Not built yet** — a plan, not a description. |
+| [`features/ONBOARD_A_SITE.md`](features/ONBOARD_A_SITE.md) | Repeatable checklist for adding a site to the drafting control plane: Supabase setup, credentials, registry entry, brand tokens, verification. |
+| [`features/MULTI_SITE_PLAN.md`](features/MULTI_SITE_PLAN.md) | The multi-site architecture and the decisions behind it. **Executed except Phase 6** — kept for the rationale, not as a description of behavior. |
 
 ## `seo/` — the marketing site's SEO content and verification
 
