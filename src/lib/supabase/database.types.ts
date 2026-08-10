@@ -17,6 +17,12 @@ export type PostSource = "human" | "ai-assisted";
  */
 export type ProfileRole = "owner" | "admin";
 
+/** Access tokens are short-lived; refresh tokens rotate on every use. */
+export type OAuthTokenKind = "access" | "refresh";
+
+/** Postgres `jsonb`, as far as the client is concerned. */
+export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
+
 export type Database = {
   public: {
     Tables: {
@@ -99,6 +105,116 @@ export type Database = {
         };
         Relationships: [];
       };
+
+      // -------------------------------------------------------------------
+      // OAuth 2.1 authorization-server storage.
+      //
+      // RLS is enabled with no policies, so these are reachable only with the
+      // service-role key. See 20260810120000_add_mcp_oauth.sql.
+      // -------------------------------------------------------------------
+
+      oauth_clients: {
+        Row: {
+          client_id: string;
+          client_name: string | null;
+          redirect_uris: string[];
+          grant_types: string[];
+          response_types: string[];
+          token_endpoint_auth_method: string;
+          scope: string | null;
+          client_uri: string | null;
+          logo_uri: string | null;
+          software_id: string | null;
+          software_version: string | null;
+          raw_metadata: Json;
+          created_at: string;
+        };
+        Insert: {
+          client_id: string;
+          client_name?: string | null;
+          redirect_uris: string[];
+          grant_types?: string[];
+          response_types?: string[];
+          token_endpoint_auth_method?: string;
+          scope?: string | null;
+          client_uri?: string | null;
+          logo_uri?: string | null;
+          software_id?: string | null;
+          software_version?: string | null;
+          raw_metadata?: Json;
+          created_at?: string;
+        };
+        Update: {
+          client_name?: string | null;
+          redirect_uris?: string[];
+          scope?: string | null;
+        };
+        Relationships: [];
+      };
+
+      oauth_authorization_codes: {
+        Row: {
+          code_hash: string;
+          client_id: string;
+          user_id: string;
+          redirect_uri: string;
+          code_challenge: string;
+          code_challenge_method: string;
+          scopes: string[];
+          resource: string | null;
+          expires_at: string;
+          consumed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          code_hash: string;
+          client_id: string;
+          user_id: string;
+          redirect_uri: string;
+          code_challenge: string;
+          code_challenge_method?: string;
+          scopes: string[];
+          resource?: string | null;
+          expires_at: string;
+          consumed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          consumed_at?: string | null;
+        };
+        Relationships: [];
+      };
+
+      oauth_tokens: {
+        Row: {
+          token_hash: string;
+          kind: OAuthTokenKind;
+          client_id: string;
+          user_id: string;
+          scopes: string[];
+          resource: string | null;
+          expires_at: string;
+          revoked_at: string | null;
+          parent_hash: string | null;
+          created_at: string;
+        };
+        Insert: {
+          token_hash: string;
+          kind: OAuthTokenKind;
+          client_id: string;
+          user_id: string;
+          scopes: string[];
+          resource?: string | null;
+          expires_at: string;
+          revoked_at?: string | null;
+          parent_hash?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          revoked_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       /** Column-limited projection of profiles used for public attribution. */
@@ -110,7 +226,12 @@ export type Database = {
         Relationships: [];
       };
     };
-    Functions: Record<never, never>;
+    Functions: {
+      purge_expired_oauth_artifacts: {
+        Args: Record<never, never>;
+        Returns: undefined;
+      };
+    };
     Enums: Record<never, never>;
     CompositeTypes: Record<never, never>;
   };
@@ -118,3 +239,6 @@ export type Database = {
 
 export type PostRow = Database["public"]["Tables"]["posts"]["Row"];
 export type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+export type OAuthClientRow = Database["public"]["Tables"]["oauth_clients"]["Row"];
+export type OAuthCodeRow = Database["public"]["Tables"]["oauth_authorization_codes"]["Row"];
+export type OAuthTokenRow = Database["public"]["Tables"]["oauth_tokens"]["Row"];

@@ -76,8 +76,19 @@ export async function loadOwnerContext(): Promise<AdminResult> {
 }
 
 /**
- * Validates a post-login redirect target. Only same-origin absolute paths
- * under /admin are allowed, so a crafted `?next=` cannot bounce a signed-in
+ * Paths the login flow may return to, matched against the portion of the target
+ * before any query string.
+ *
+ * `/oauth/authorize` is here because the OAuth consent screen reuses this same
+ * login: an unauthenticated authorization request lands on `/admin/login` and
+ * must come back to finish. It carries a query string, which `/admin` targets
+ * never do — hence the path/query split below.
+ */
+const ALLOWED_REDIRECT_PREFIXES = ["/admin", "/oauth/authorize"] as const;
+
+/**
+ * Validates a post-login redirect target. Only same-origin absolute paths on the
+ * allowlist above are accepted, so a crafted `?next=` cannot bounce a signed-in
  * administrator to an attacker-controlled host.
  */
 export function safeAdminRedirect(target: string | null | undefined): string {
@@ -86,8 +97,21 @@ export function safeAdminRedirect(target: string | null | undefined): string {
 
   // Reject protocol-relative ("//evil.com") and absolute URLs outright.
   if (!target.startsWith("/") || target.startsWith("//")) return fallback;
-  if (!target.startsWith("/admin")) return fallback;
-  if (target.startsWith("/admin/login")) return fallback;
+
+  // A backslash is treated as a path separator by some user agents, so "/\evil.com"
+  // can navigate off-origin. Refuse it rather than trying to normalise it.
+  if (target.includes("\\")) return fallback;
+
+  // Compare the path only. Without this, "/admin.evil.com" would pass a bare
+  // startsWith("/admin") check.
+  const [path] = target.split(/[?#]/, 1);
+  const allowed = ALLOWED_REDIRECT_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  );
+  if (!allowed) return fallback;
+
+  // Bouncing back to the login page would loop.
+  if (path === "/admin/login") return fallback;
 
   return target;
 }

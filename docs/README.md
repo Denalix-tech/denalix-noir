@@ -11,6 +11,7 @@ is the bug.
 | --- | --- |
 | [`features/PUBLISHING_BLOGS.md`](features/PUBLISHING_BLOGS.md) | How to publish SEO-optimized posts: field limits, the writing playbook, what SEO is automatic, what is not automated, and the pitfalls. **Start here.** |
 | [`features/ONBOARD_A_SITE.md`](features/ONBOARD_A_SITE.md) | Repeatable checklist for adding a site to the drafting control plane: Supabase setup, credentials, registry entry, brand tokens, verification. |
+| [`features/MCP_SERVER_AND_SYNDICATION.md`](features/MCP_SERVER_AND_SYNDICATION.md) | Running the MCP server (built), plus runbooks for **unbuilt** work: an HTTP transport, a ChatGPT connector, and syndication to DEV/Hashnode. Every section is marked built or not. |
 | [`features/MULTI_SITE_PLAN.md`](features/MULTI_SITE_PLAN.md) | The multi-site architecture and the decisions behind it. **Executed except Phase 6** — kept for the rationale, not as a description of behavior. |
 
 ## `seo/` — the marketing site's SEO content and verification

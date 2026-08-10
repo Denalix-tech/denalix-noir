@@ -5,6 +5,7 @@ import * as db from "./adapters/supabase";
 import { coverAltText, renderCoverPng, COVER_WIDTH, COVER_HEIGHT } from "./cover-image";
 import { errorResult, textResult } from "./lib";
 import { loadSites, resolveSite, siteKeys, type SiteConfig } from "./sites";
+import { writingGuide } from "./writing-guide";
 import { postInputSchema, fieldErrors } from "../src/lib/blog/schema";
 import { isValidSlug, slugify } from "../src/lib/blog/slug";
 
@@ -28,6 +29,39 @@ const siteParam = z
   .string()
   .describe(`Site key. One of: ${siteKeys().join(", ")}. Call list_sites for details.`);
 
+/**
+ * OAuth scopes, duplicated as literals rather than imported from
+ * `src/lib/mcp-auth/config.ts`.
+ *
+ * That module is `server-only`, which throws outside a React Server Component —
+ * this file also runs as a plain Node process over stdio. The strings are part of
+ * the OAuth wire contract and will not change silently; `src/lib/mcp-auth/config.ts`
+ * is the source of truth and the values must match it.
+ */
+const SCOPE_READ = "blog:read";
+const SCOPE_DRAFT = "blog:draft";
+
+export type ToolOptions = {
+  /**
+   * Scopes granted to the caller.
+   *
+   * `undefined` means an unscoped, locally trusted transport — the stdio server
+   * launched by your own editor — and every tool is registered. When present,
+   * only tools covered by the grant are registered, so a read-only token does not
+   * even see `create_draft` in `tools/list`.
+   *
+   * Registration-time filtering is the enforcement point rather than a check
+   * inside each handler: a tool that is never registered cannot be called at all,
+   * which leaves no handler to get the check wrong.
+   */
+  grantedScopes?: readonly string[];
+};
+
+function grants(options: ToolOptions | undefined, scope: string): boolean {
+  if (!options?.grantedScopes) return true;
+  return options.grantedScopes.includes(scope);
+}
+
 /** Identifies the resolved target in every response, so a mistake is obvious. */
 function siteEcho(site: SiteConfig) {
   return { key: site.key, name: site.name, origin: site.origin };
@@ -37,11 +71,21 @@ function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-export function registerBlogTools(server: McpServer): void {
-  // -------------------------------------------------------------------------
-  // Discovery
-  // -------------------------------------------------------------------------
+export function registerBlogTools(server: McpServer, options?: ToolOptions): void {
+  const canRead = grants(options, SCOPE_READ);
+  const canDraft = grants(options, SCOPE_DRAFT);
 
+  // Needed to name a site for any other call, so available under either scope.
+  if (canRead || canDraft) registerDiscoveryTools(server);
+  if (canRead) registerReadTools(server);
+  if (canDraft) registerWriteTools(server);
+}
+
+// ---------------------------------------------------------------------------
+// Discovery
+// ---------------------------------------------------------------------------
+
+function registerDiscoveryTools(server: McpServer): void {
   server.registerTool(
     "list_sites",
     {
@@ -61,9 +105,30 @@ export function registerBlogTools(server: McpServer): void {
       ),
   );
 
-  // -------------------------------------------------------------------------
-  // Reads
-  // -------------------------------------------------------------------------
+}
+
+// ---------------------------------------------------------------------------
+// Reads — blog:read
+// ---------------------------------------------------------------------------
+
+function registerReadTools(server: McpServer): void {
+  server.registerTool(
+    "get_writing_guide",
+    {
+      title: "Get the writing and SEO brief",
+      description:
+        "Read this BEFORE drafting any post. Returns the required structure, SEO rules, field limits, internal-link targets, and the list of claims that must never be invented. Clients that cannot read this repository have no other source for these rules.",
+      inputSchema: { site: siteParam },
+    },
+    async ({ site: siteKey }) => {
+      try {
+        const site = resolveSite(siteKey);
+        return textResult(writingGuide(site));
+      } catch (err) {
+        return errorResult(message(err));
+      }
+    },
+  );
 
   server.registerTool(
     "list_posts",
@@ -199,10 +264,16 @@ export function registerBlogTools(server: McpServer): void {
     },
   );
 
-  // -------------------------------------------------------------------------
-  // Cover image
-  // -------------------------------------------------------------------------
+}
 
+// ---------------------------------------------------------------------------
+// Writes — blog:draft
+//
+// Both tools here mutate something: one uploads to storage, the other inserts a
+// row. Neither can publish.
+// ---------------------------------------------------------------------------
+
+function registerWriteTools(server: McpServer): void {
   server.registerTool(
     "generate_cover_image",
     {
@@ -239,16 +310,12 @@ export function registerBlogTools(server: McpServer): void {
     },
   );
 
-  // -------------------------------------------------------------------------
-  // Write — draft only, never publish
-  // -------------------------------------------------------------------------
-
   server.registerTool(
     "create_draft",
     {
       title: "Create a blog draft",
       description:
-        "Create a new post on one site as a DRAFT for human review. This tool cannot publish — a person approves and publishes in that site's own admin. Validates against the same schema the admin editor uses, so anything accepted here will also save there.",
+        "Create a new post on one site as a DRAFT for human review. Call get_writing_guide first — a draft written without it will not meet this site's SEO and factual-accuracy rules. This tool cannot publish; a person approves and publishes in that site's own admin. Validates against the same schema the admin editor uses, so anything accepted here will also save there.",
       inputSchema: {
         site: siteParam,
         title: z.string().describe("Post title, 1-160 characters"),

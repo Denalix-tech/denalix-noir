@@ -20,6 +20,10 @@ export default function robots(): MetadataRoute.Robots {
         // Sign-in, dashboard, editor, draft previews, and people management.
         "/admin",
         "/admin/",
+        // Remote MCP endpoint and the OAuth surface in front of it. Both are
+        // access-controlled; this is crawl hygiene, not a security measure.
+        "/api/mcp",
+        "/oauth",
       ],
     },
     sitemap: absoluteUrl("/sitemap.xml"),

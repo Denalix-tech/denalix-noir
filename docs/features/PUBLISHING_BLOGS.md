@@ -80,28 +80,42 @@ appear to have been written today.
 
 ---
 
-## 3. Path B — draft with Claude Code, publish yourself
+## 3. Path B — draft with an AI client, publish yourself
 
-`mcp/server.ts` is a local MCP server registered in `.mcp.json`, so Claude Code
-picks it up automatically. **Restart Claude Code once** after pulling it in.
+The same tool surface is reachable two ways:
+
+- **Claude Code**, over stdio. `mcp/server.ts` is registered in `.mcp.json`, so
+  it's picked up automatically. **Restart Claude Code once** after pulling it in.
+  A local transport is unscoped and sees all eight tools.
+- **ChatGPT**, over HTTPS at `/api/mcp`, behind **OAuth 2.1**. A connector must
+  be approved by a signed-in `owner`/`admin` on the consent screen, and its token
+  carries scopes — `blog:read` sees the six read tools, `blog:draft` adds
+  `generate_cover_image` and `create_draft`. Setup is in
+  [`MCP_SERVER_AND_SYNDICATION.md`](MCP_SERVER_AND_SYNDICATION.md) §3.2.
 
 Ask in plain language, naming the site:
 
 > Draft a post for denalixtech on cutting manual data entry in a construction
-> back office. Check the slug first, suggest internal links, generate a cover
-> image, and create it as a draft.
+> back office. Read the writing guide first, check the slug, suggest internal
+> links, generate a cover image, and create it as a draft.
 
-Seven tools back that:
+Eight tools back that:
 
 | Tool | What it does for you |
 | --- | --- |
 | `list_sites` | Which sites you can publish to. Start here if unsure of the key |
+| `get_writing_guide` | This document's §5 and §8, addressed to a model. **Clients that can't read this repo have no other source for these rules** |
 | `list_posts` | Existing posts + slugs on that site, so you don't duplicate a topic |
 | `check_slug` | Format validity and availability **on that site**, with a corrected suggestion |
 | `get_link_targets` | That site's commercial pages, their audiences, problems and deliverables |
 | `suggest_internal_links` | Which of those pages a draft should link to, and the phrase that motivates each |
 | `generate_cover_image` | Renders a 1200×630 cover **in that site's brand**, uploads it, returns URL + alt text |
 | `create_draft` | Creates a **draft**, validated by the same schema the editor uses |
+
+> `mcp/writing-guide.ts` mirrors [§5](#5-the-seo-writing-playbook) and
+> [§8](#8-things-to-keep-in-mind) of this document. **Edit both together** — a
+> model following a stale brief is worse than one following none, because the
+> output looks compliant.
 
 **Every content tool requires an explicit `site`.** There is no default and no
 fuzzy matching — a mistyped key fails with the valid keys listed rather than
@@ -122,8 +136,13 @@ Two things to know:
   rendered as SVG and rasterised with `sharp`. Free, instant, on-brand, no
   third-party key. Not photography. If you ever want photographic art, that
   needs a paid image API, and `generate_cover_image` is the seam it slots into.
-- **The server uses the service-role key and bypasses RLS.** It runs locally
-  over stdio, launched by your editor. Never deploy it or expose it on a port.
+- **The tools use each site's service-role key and bypass RLS.** The stdio
+  server, which holds every registered site's key, stays local — never deploy
+  it. The deployed `/api/mcp` route is a deliberately reduced instance:
+  `SITES_ENABLED=denalixtech` limits it to one site, and **no client
+  `SITE_*_SERVICE_ROLE_KEY` may ever be added to that environment.** Access is an
+  OAuth grant a human approved, not a shared secret, and it is revocable from
+  `oauth_tokens` with immediate effect.
 
 ---
 
@@ -334,7 +353,8 @@ your market, or being accountable for a claim, is deliberately yours.
 | **Choosing which site to post to** | ❌ **No, by design** | You, as an explicit `site` argument. No default, no inference |
 | Catching a mistyped site key | ✅ Yes | Exact-match resolution; fails listing valid keys |
 | Checking a topic isn't already covered | ✅ Yes | `list_posts` (per site) |
-| Drafting the body | ⚙️ Assisted | Claude Code via MCP; a human must review it |
+| Drafting the body | ⚙️ Assisted | Claude Code or ChatGPT via MCP; a human must review it |
+| Giving the model these writing rules | ✅ Yes | `get_writing_guide`, from `mcp/writing-guide.ts` |
 | Fact-checking the draft | ❌ **No** | You. This is the whole reason there is no publish tool |
 | Slug generation from the title | ✅ Yes | Editor, for new posts only |
 | Slug format + uniqueness check | ✅ Yes | `check_slug`, the Zod schema, and a DB unique index |
@@ -480,9 +500,13 @@ Update this document when any of these change.
 | Article layout, H1, cover | `src/components/blog/PostArticle.tsx` |
 | Reading time | `src/lib/blog/reading-time.ts` |
 | Service pages (internal-link targets) | `src/lib/services-data.ts` |
-| MCP tool surface | `mcp/tools.ts` |
-| MCP transport + wiring | `mcp/server.ts` |
-| Site registry, resolution, credentials | `mcp/sites.ts`, `mcp/sites.config.ts` |
+| MCP tool surface, scope gating | `mcp/tools.ts` |
+| MCP transport + wiring (stdio) | `mcp/server.ts` |
+| MCP transport (remote, for ChatGPT) | `src/app/api/mcp/route.ts` |
+| OAuth 2.1 server (scopes, tokens, PKCE, consent) | `src/lib/mcp-auth/`, `src/app/oauth/`, `src/app/.well-known/` |
+| OAuth storage + RLS | `supabase/migrations/20260810120000_add_mcp_oauth.sql` |
+| The drafting brief served to models | `mcp/writing-guide.ts` |
+| Site registry, resolution, credentials, `SITES_ENABLED` | `mcp/sites.ts`, `mcp/sites.config.ts` |
 | Per-site brand tokens | `mcp/brand.ts` |
 | Cover rendering | `mcp/cover-image.ts` |
 | Supabase access for the MCP server | `mcp/adapters/supabase.ts` |

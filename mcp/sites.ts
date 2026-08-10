@@ -74,12 +74,52 @@ function assertDistinctKeys(configs: SiteConfig[]): void {
 
 assertDistinctKeys(sites);
 
+/**
+ * The subset of the registry this process is allowed to touch, from
+ * `SITES_ENABLED` (comma-separated keys). Unset means every registered site —
+ * the local stdio server's normal mode.
+ *
+ * This exists for hosted runs. A deployed instance should carry only the sites
+ * it serves, so that a compromise of the host cannot reach a client's database
+ * even if that client's credentials were left in the environment by mistake.
+ * Set `SITES_ENABLED=denalixtech` on anything public. See
+ * `docs/features/MCP_SERVER_AND_SYNDICATION.md` §2.1.
+ *
+ * Computed once: the allowlist is deployment configuration, not per-call state.
+ */
+const enabled: SiteConfig[] = (() => {
+  const raw = env.SITES_ENABLED?.trim();
+  if (!raw) return sites;
+
+  const wanted = raw
+    .split(",")
+    .map((key) => key.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (wanted.length === 0) return sites;
+
+  // A typo here would silently disable a site rather than fail, and the symptom
+  // ("Unknown site") would point at the caller instead of at the deployment.
+  const unknown = wanted.filter(
+    (key) => !sites.some((site) => site.key.toLowerCase() === key),
+  );
+  if (unknown.length > 0) {
+    throw new Error(
+      `SITES_ENABLED names unregistered site(s): ${unknown.join(", ")}. Registered: ${sites
+        .map((site) => site.key)
+        .join(", ")}.`,
+    );
+  }
+
+  return sites.filter((site) => wanted.includes(site.key.toLowerCase()));
+})();
+
 export function loadSites(): SiteConfig[] {
-  return sites;
+  return enabled;
 }
 
 export function siteKeys(): string[] {
-  return sites.map((site) => site.key);
+  return enabled.map((site) => site.key);
 }
 
 /**
@@ -87,6 +127,9 @@ export function siteKeys(): string[] {
  * neighbour, and no default site: every one of those could silently retarget a
  * write at the wrong client. Failing with the valid keys listed is the only
  * helpful behaviour that is also safe.
+ *
+ * Resolves against the enabled subset, not the whole registry — otherwise the
+ * allowlist would be decorative and a disabled site would still be writable.
  */
 export function resolveSite(key: string): SiteConfig {
   const wanted = key.trim().toLowerCase();
@@ -97,7 +140,7 @@ export function resolveSite(key: string): SiteConfig {
     );
   }
 
-  const site = sites.find((candidate) => candidate.key.toLowerCase() === wanted);
+  const site = enabled.find((candidate) => candidate.key.toLowerCase() === wanted);
 
   if (!site) {
     throw new Error(

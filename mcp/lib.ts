@@ -10,12 +10,27 @@ import { resolve } from "node:path";
  * therefore lives in `adapters/supabase.ts`, while the modules that genuinely
  * must not drift are reused directly: `blog/schema.ts`, `blog/slug.ts`, and
  * `services-data.ts`.
+ *
+ * It is also imported by `src/app/api/mcp/[secret]/route.ts`, where it *is*
+ * bundled — hence the guard on `import.meta.dirname` below.
  */
 
-const ROOT = resolve(import.meta.dirname, "..");
+/**
+ * Repo root, for locating `.env.local`.
+ *
+ * `import.meta.dirname` is undefined once this module is bundled by Turbopack,
+ * and `resolve(undefined, "..")` throws at module evaluation — which fails the
+ * build, not just the read. There is no `.env.local` to find in a deployment
+ * anyway: real environment variables are the only source there.
+ */
+const ROOT: string | null = import.meta.dirname
+  ? resolve(import.meta.dirname, "..")
+  : null;
 
 /** Minimal .env.local reader — avoids taking a dotenv dependency. */
 function loadEnv(): Record<string, string> {
+  if (!ROOT) return {};
+
   try {
     const raw = readFileSync(resolve(ROOT, ".env.local"), "utf8");
     return Object.fromEntries(
