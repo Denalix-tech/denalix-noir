@@ -55,9 +55,15 @@ export default async function AccountPage() {
       <section className="panel mt-6 rounded-sm p-6">
         <h2 className="font-display text-lg font-semibold text-white">Forgotten password</h2>
         <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted">
-          There is no self-service reset, on purpose. If you cannot sign in, a
-          superadmin sends a recovery link from the Supabase dashboard under
-          Authentication → Users.
+          If you ever cannot sign in, request a link from{" "}
+          <Link
+            href="/admin/forgot-password"
+            className="font-medium text-white underline underline-offset-4 hover:text-white/80"
+          >
+            the reset page
+          </Link>
+          . It emails a one-time link that lets you set a new password without the
+          old one.
         </p>
       </section>
     </>

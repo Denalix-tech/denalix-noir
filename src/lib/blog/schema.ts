@@ -120,6 +120,27 @@ export const signUpSchema = z
     path: ["confirmPassword"],
   });
 
+/** Requesting a recovery email. Deliberately reveals nothing about the address. */
+export const requestResetSchema = z.object({
+  email: z.email("Enter a valid email address."),
+});
+
+/**
+ * Setting a password from a recovery link.
+ *
+ * No current-password field: the whole point is that it has been forgotten. The
+ * authority here is the emailed token, checked before this page renders.
+ */
+export const setNewPasswordSchema = z
+  .object({
+    newPassword: passwordField,
+    confirmPassword: z.string(),
+  })
+  .refine((values) => values.newPassword === values.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
+
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, "Enter your current password."),
