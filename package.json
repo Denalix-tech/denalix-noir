@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "verify:mcp-oauth": "tsx scripts/verify-mcp-oauth.mts"
+    "verify:mcp-oauth": "tsx scripts/verify-mcp-oauth.mts",
+    "recovery-link": "tsx scripts/recovery-link.mts"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
