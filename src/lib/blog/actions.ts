@@ -31,6 +31,7 @@ export type BulkPublishResult = {
 const AUTH_MESSAGES: Record<AuthFailure["reason"], string> = {
   unconfigured: "Supabase is not configured. See README.md.",
   unauthenticated: "Your session expired. Sign in again.",
+  pending: "This account is awaiting approval by a superadmin.",
   forbidden: "This account does not have administrator access.",
 };
 

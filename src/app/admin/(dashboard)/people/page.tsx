@@ -16,9 +16,9 @@ export default async function PeoplePage() {
   if (!context.ok) {
     return (
       <div className="panel rounded-sm p-8">
-        <h1 className="font-display text-xl font-semibold text-white">Owners only</h1>
+        <h1 className="font-display text-xl font-semibold text-white">Superadmins only</h1>
         <p className="mt-3 text-sm leading-relaxed text-muted">
-          Managing access is restricted to owners. Ask an owner if you need a role changed.
+          Managing access is restricted to superadmins. Ask one if you need a role changed.
         </p>
         <Link
           href="/admin/posts"
@@ -49,14 +49,31 @@ export default async function PeoplePage() {
 
   const [people, ownerCount] = await Promise.all([listPeople(), countOwners()]);
 
+  // Accounts that exist without a role: self-service requests, and invites never
+  // accepted. Granting a role is the approval.
+  const awaitingApproval = people.filter((person) => person.role === null).length;
+
   return (
     <>
       <div>
         <h1 className="font-display text-2xl font-semibold text-white">People</h1>
         <p className="mt-2 text-sm text-muted">
-          Owners manage access and posts. Admins manage posts only.
+          Superadmins manage access, posts, and approve new accounts. Admins manage posts only.
         </p>
       </div>
+
+      {awaitingApproval > 0 ? (
+        <div
+          role="status"
+          className="mt-6 rounded-sm border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed text-amber-100"
+        >
+          <span className="font-medium">
+            {awaitingApproval} account{awaitingApproval === 1 ? "" : "s"} awaiting approval.
+          </span>{" "}
+          Granting a role is what approves an account — until then it can sign in but
+          reaches nothing. Revoke instead if you do not recognise the address.
+        </div>
+      ) : null}
 
       <div className="mt-8">
         <InviteForm />

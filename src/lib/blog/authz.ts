@@ -23,7 +23,12 @@ export type AdminContext = {
 
 export type AuthFailure = {
   ok: false;
-  reason: "unconfigured" | "unauthenticated" | "forbidden";
+  /**
+   * `pending` — signed in, but no profile row yet, so a superadmin has not
+   * approved this account. Distinguished from `forbidden` only to show the right
+   * message: both deny access identically.
+   */
+  reason: "unconfigured" | "unauthenticated" | "pending" | "forbidden";
 };
 
 export type AdminResult = AdminContext | AuthFailure;
@@ -56,8 +61,14 @@ export async function loadAdminContext(): Promise<AdminResult> {
     return { ok: false, reason: "forbidden" };
   }
 
-  // An owner can do everything an admin can, so both roles pass here.
-  if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
+  // No profile row means nobody has granted this account a role yet. Self-service
+  // sign-ups land here, and stay here until a superadmin approves them — the
+  // `profiles: owners insert` policy is what makes that a real gate.
+  if (!profile) return { ok: false, reason: "pending" };
+
+  // An owner (labelled "Superadmin" in the UI) can do everything an admin can, so
+  // both roles pass here.
+  if (profile.role !== "admin" && profile.role !== "owner") {
     return { ok: false, reason: "forbidden" };
   }
 

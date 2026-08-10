@@ -58,7 +58,7 @@ export function InviteForm() {
           </label>
           <select id="invite-role" name="role" defaultValue="admin" className={INPUT_CLASS}>
             <option value="admin">Admin</option>
-            <option value="owner">Owner</option>
+            <option value="owner">Superadmin</option>
           </select>
         </div>
 

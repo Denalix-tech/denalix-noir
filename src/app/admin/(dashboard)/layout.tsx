@@ -26,6 +26,11 @@ export default async function AdminDashboardLayout({
       redirect(`/admin/login?next=${encodeURIComponent(pathname)}`);
     }
 
+    // Signed in with no role yet — a self-service request nobody has approved.
+    // Same denial as below; a different message so the person knows to wait
+    // rather than assume something is broken.
+    if (context.reason === "pending") return <AwaitingApproval />;
+
     // Authenticated but not an administrator: an explicit refusal, never the
     // admin interface.
     return <AccessDenied />;
@@ -63,6 +68,12 @@ export default async function AdminDashboardLayout({
                 </Link>
               ) : null}
               <Link
+                href="/admin/account"
+                className="text-sm font-medium text-muted transition-colors hover:text-white"
+              >
+                Account
+              </Link>
+              <Link
                 href="/blog"
                 className="text-sm font-medium text-muted transition-colors hover:text-white"
               >
@@ -75,7 +86,8 @@ export default async function AdminDashboardLayout({
             <span className="text-sm text-muted-soft">
               {displayName}
               <span className="ml-2 rounded-sm border border-white/15 px-1.5 py-0.5 text-xs text-muted">
-                {context.isOwner ? "Owner" : "Admin"}
+                {/* `owner` in the database; "Superadmin" is the label the team uses. */}
+                {context.isOwner ? "Superadmin" : "Admin"}
               </span>
             </span>
             <form action={signOutAction}>
@@ -106,6 +118,37 @@ function ConfigurationNotice() {
           <code className="font-mono">.env.local</code>, then restart the dev server. See{" "}
           <code className="font-mono">README.md</code> for the full setup.
         </p>
+      </div>
+    </main>
+  );
+}
+
+function AwaitingApproval() {
+  return (
+    <main className="flex min-h-screen items-center justify-center px-6">
+      <div className="panel max-w-md rounded-sm p-8">
+        <h1 className="font-display text-xl font-semibold text-white">Awaiting approval</h1>
+        <p className="mt-3 text-sm leading-relaxed text-muted">
+          Your account exists but no role has been granted yet. A superadmin has to
+          approve it before you can reach the admin area.
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-muted-soft">
+          Nothing more is needed from you. You will be able to sign in normally
+          once it is approved.
+        </p>
+        <div className="mt-6 flex items-center gap-3">
+          <form action={signOutAction}>
+            <button
+              type="submit"
+              className="rounded-sm border border-white/15 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:border-white/40"
+            >
+              Sign out
+            </button>
+          </form>
+          <Link href="/" className="text-sm font-medium text-muted hover:text-white">
+            Back to site
+          </Link>
+        </div>
       </div>
     </main>
   );

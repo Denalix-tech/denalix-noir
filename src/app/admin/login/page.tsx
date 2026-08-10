@@ -46,9 +46,19 @@ export default async function AdminLoginPage({ searchParams }: PageProps) {
           <LoginForm next={target} />
         )}
 
-        <p className="mt-8 text-xs leading-relaxed text-muted-soft">
-          Accounts are created by an administrator in the Supabase dashboard. Password resets are
-          handled there as well.
+        <p className="mt-8 text-sm text-muted">
+          Need access?{" "}
+          <Link
+            href="/admin/signup"
+            className="font-medium text-white underline underline-offset-4 hover:text-white/80"
+          >
+            Request an account
+          </Link>
+        </p>
+
+        <p className="mt-4 text-xs leading-relaxed text-muted-soft">
+          Every request is approved by a superadmin before it grants access. Forgotten
+          passwords are reset by a superadmin from the Supabase dashboard.
         </p>
       </div>
     </main>

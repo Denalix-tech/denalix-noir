@@ -84,6 +84,57 @@ export const signInSchema = z.object({
   password: z.string().min(1, "Password is required."),
 });
 
+/**
+ * Minimum password length for accounts created or changed through the app.
+ *
+ * Longer than Supabase's own 6-character floor. Length is the only requirement:
+ * composition rules ("one symbol, one digit") push people toward predictable
+ * substitutions and shorter secrets, which is worse.
+ */
+export const PASSWORD_MIN = 12;
+export const PASSWORD_MAX = 200;
+
+const passwordField = z
+  .string()
+  .min(PASSWORD_MIN, `Use at least ${PASSWORD_MIN} characters.`)
+  // bcrypt silently ignores bytes past 72, so a longer value would give a false
+  // sense of strength. Capped well below that to keep the failure explicit.
+  .max(PASSWORD_MAX, `Use ${PASSWORD_MAX} characters or fewer.`);
+
+/**
+ * Self-service access request.
+ *
+ * The invite code is checked in the Server Action, not here — a mismatch must
+ * read as one generic failure rather than a field-level hint that would let
+ * someone probe codes against a form.
+ */
+export const signUpSchema = z
+  .object({
+    email: z.email("Enter a valid email address."),
+    password: passwordField,
+    confirmPassword: z.string(),
+    inviteCode: z.string().min(1, "An invite code is required."),
+  })
+  .refine((values) => values.password === values.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Enter your current password."),
+    newPassword: passwordField,
+    confirmPassword: z.string(),
+  })
+  .refine((values) => values.newPassword === values.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  })
+  .refine((values) => values.newPassword !== values.currentPassword, {
+    message: "The new password must differ from the current one.",
+    path: ["newPassword"],
+  });
+
 /** Maps a ZodError onto `{ fieldName: firstMessage }` for inline form errors. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {
   const errors: Record<string, string> = {};

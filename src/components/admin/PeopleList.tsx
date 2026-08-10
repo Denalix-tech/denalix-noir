@@ -9,9 +9,15 @@ import type { Person } from "@/lib/blog/people";
 function RoleBadge({ role }: { role: Person["role"] }) {
   // Icon and label carry the meaning; colour only reinforces it.
   const config = {
-    owner: { Icon: Crown, label: "Owner", className: "border-amber-500/40 bg-amber-500/10 text-amber-200" },
+    owner: { Icon: Crown, label: "Superadmin", className: "border-amber-500/40 bg-amber-500/10 text-amber-200" },
     admin: { Icon: PenLine, label: "Admin", className: "border-white/20 bg-white/5 text-white" },
-    none: { Icon: MinusCircle, label: "No access", className: "border-white/10 bg-transparent text-muted-soft" },
+    // No profile row. Either a self-service request or an invite never accepted;
+    // both need the same thing from a superadmin, so they read the same here.
+    none: {
+      Icon: MinusCircle,
+      label: "Awaiting approval",
+      className: "border-amber-500/30 bg-amber-500/5 text-amber-200/80",
+    },
   }[role ?? "none"];
 
   const { Icon, label, className } = config;
@@ -104,14 +110,14 @@ export function PeopleList({ people, ownerCount, currentUserId }: Props) {
                       Grant admin
                     </RoleButton>
                     <RoleButton userId={person.id} role="owner">
-                      Grant owner
+                      Grant superadmin
                     </RoleButton>
                   </>
                 ) : null}
 
                 {person.role === "admin" ? (
                   <RoleButton userId={person.id} role="owner">
-                    Make owner
+                    Make superadmin
                   </RoleButton>
                 ) : null}
 

@@ -50,7 +50,15 @@ export function Navbar() {
             ))}
           </nav>
 
-          <div className="hidden lg:block">
+          <div className="hidden items-center gap-5 lg:flex">
+            {/* Staff entry point. Kept visually quieter than the Contact CTA so it
+                does not compete with the conversion path. */}
+            <Link
+              href="/admin/login"
+              className="text-sm font-medium text-muted transition-colors hover:text-white"
+            >
+              Sign in
+            </Link>
             <GlowButton href="/contact" className="!px-5 !py-2.5 text-xs">
               {hero.primaryCta}
             </GlowButton>
@@ -85,6 +93,13 @@ export function Navbar() {
                     {link.label}
                   </Link>
                 ))}
+                <Link
+                  href="/admin/login"
+                  onClick={() => setOpen(false)}
+                  className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-white/5 hover:text-white"
+                >
+                  Sign in
+                </Link>
                 <div className="mt-2">
                   <GlowButton href="/contact" className="w-full justify-center" >
                     {hero.primaryCta}

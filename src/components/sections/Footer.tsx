@@ -87,7 +87,14 @@ export function Footer() {
 
         <div className="mt-16 flex flex-col items-center justify-between gap-4 border-t border-white/8 pt-8 text-xs text-muted-soft sm:flex-row">
           <p>© {new Date().getFullYear()} {site.fullName}. All rights reserved.</p>
-          <span>{site.location}</span>
+          <div className="flex items-center gap-4">
+            <span>{site.location}</span>
+            {/* Staff link. /admin is disallowed in robots.ts, so this is for people
+                who already know it exists, not for discovery. */}
+            <Link href="/admin/login" className="transition-colors hover:text-white">
+              Admin
+            </Link>
+          </div>
         </div>
       </div>
     </footer>
