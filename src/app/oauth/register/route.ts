@@ -2,6 +2,8 @@ import { OAuthClientMetadataSchema } from "@modelcontextprotocol/sdk/shared/auth
 
 import { DEFAULT_SCOPES, isMcpOAuthEnabled, parseScopes } from "@/lib/mcp-auth/config";
 import { registerClient } from "@/lib/mcp-auth/store";
+import { hasServiceRoleKey } from "@/lib/supabase/admin";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 /**
  * RFC 7591 Dynamic Client Registration.
@@ -24,12 +26,48 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function badRequest(error: string, description: string): Response {
-  return Response.json({ error, error_description: description }, { status: 400 });
+  return Response.json(
+    { error, error_description: description },
+    { status: 400, headers: { "cache-control": "no-store" } },
+  );
+}
+
+/**
+ * A fault on this side of the connection.
+ *
+ * Kept strictly separate from `badRequest`, because RFC 7591's
+ * `invalid_client_metadata` is an accusation that the *client* sent something
+ * wrong. Returning it for a missing environment variable sends the operator
+ * looking at the wrong system — the failure surfaces in ChatGPT as
+ * "Dynamic client registration failed: invalid_client_metadata", which is both
+ * unactionable and untrue.
+ */
+function serverError(description: string): Response {
+  return Response.json(
+    { error: "server_error", error_description: description },
+    { status: 500, headers: { "cache-control": "no-store" } },
+  );
 }
 
 export async function POST(request: Request): Promise<Response> {
   if (!isMcpOAuthEnabled()) {
     return new Response("Not Found", { status: 404 });
+  }
+
+  // Checked before any parsing so a misconfigured deployment says so plainly
+  // instead of failing later inside an insert and looking like bad metadata.
+  if (!isSupabaseConfigured()) {
+    console.error("[mcp-oauth] registration blocked: Supabase is not configured");
+    return serverError(
+      "The authorization server is misconfigured: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is missing.",
+    );
+  }
+
+  if (!hasServiceRoleKey()) {
+    console.error("[mcp-oauth] registration blocked: SUPABASE_SERVICE_ROLE_KEY is not set");
+    return serverError(
+      "The authorization server is misconfigured: SUPABASE_SERVICE_ROLE_KEY is not set on this deployment.",
+    );
   }
 
   let body: unknown;
@@ -109,12 +147,19 @@ export async function POST(request: Request): Promise<Response> {
       { status: 201, headers: { "cache-control": "no-store" } },
     );
   } catch (error) {
-    console.error("[mcp-oauth] client registration failed", {
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return Response.json(
-      { error: "invalid_client_metadata", error_description: "Registration failed." },
-      { status: 400 },
-    );
+    // Everything the client controls was validated above, so a throw here is
+    // ours: a missing table, an unreachable database, or bad credentials.
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[mcp-oauth] client registration failed", { message });
+
+    // Missing tables are the one failure with a specific, actionable cause worth
+    // naming — the migration not having been applied.
+    if (/schema cache|does not exist|relation .* does not exist/i.test(message)) {
+      return serverError(
+        "The authorization server's storage is missing. Apply supabase/migrations/20260810120000_add_mcp_oauth.sql.",
+      );
+    }
+
+    return serverError("The authorization server could not store the registration.");
   }
 }
