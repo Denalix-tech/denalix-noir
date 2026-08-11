@@ -1,6 +1,6 @@
 import type { OAuthClientRow } from "@/lib/supabase/database.types";
 
-import { SUPPORTED_SCOPES, selectableScopes, type Scope } from "./config";
+import { SUPPORTED_SCOPES, scopeChoices, type Scope } from "./config";
 import type { AuthorizeParams } from "./params";
 import { findClient, isRegisteredRedirectUri } from "./store";
 
@@ -28,18 +28,9 @@ export type AuthorizeValidation =
       kind: "ok";
       client: OAuthClientRow;
       params: AuthorizeParams;
-      /**
-       * What the approving superadmin may grant.
-       *
-       * When the client names scopes explicitly, that is the ceiling — RFC 6749
-       * lets a server issue less than was asked for, never more. When it names
-       * none (ChatGPT does not), every supported scope is offered, because
-       * otherwise a conservative server-side default decides for the human and
-       * there is no way to elevate it: the client cannot ask, and the screen
-       * would only be able to confirm what it never requested.
-       */
+      /** Every supported scope: the human decides. See `scopeChoices`. */
       selectable: Scope[];
-      /** Ticked when the screen first renders. */
+      /** What the client asked for, ticked by default. */
       preselected: Scope[];
     }
   /** Cannot safely redirect. Render an error page. */
@@ -115,8 +106,8 @@ export async function validateAuthorizeRequest(
     );
   }
 
-  const selectable = selectableScopes(params.scope);
+  const { selectable, preselected } = scopeChoices(params.scope);
 
-  return { kind: "ok", client, params, selectable, preselected: selectable };
+  return { kind: "ok", client, params, selectable, preselected };
 }
 

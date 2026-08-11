@@ -51,8 +51,17 @@ export type Scope = (typeof SCOPES)[keyof typeof SCOPES];
 
 export const SUPPORTED_SCOPES: Scope[] = [SCOPES.read, SCOPES.draft];
 
-/** Granted when a client registers without asking for anything specific. */
-export const DEFAULT_SCOPES: Scope[] = [SCOPES.read];
+/**
+ * Recorded when a client registers without asking for anything specific.
+ *
+ * Both scopes, not just read. A client is told its registered scope in the
+ * registration response and then requests exactly that on every authorization —
+ * so advertising read-only here made every client permanently read-only, with no
+ * way for the client to ask for more. Registration grants nothing on its own; a
+ * superadmin still has to approve on the consent screen, which is where the real
+ * decision is made.
+ */
+export const DEFAULT_SCOPES: Scope[] = [SCOPES.read, SCOPES.draft];
 
 export const SCOPE_DESCRIPTIONS: Record<Scope, string> = {
   [SCOPES.read]:
@@ -80,21 +89,35 @@ export function parseScopes(raw: string | null | undefined): Scope[] {
 }
 
 /**
- * What the approving superadmin may grant for a given authorization request.
+ * What the consent screen offers, and what it pre-ticks.
  *
- * An explicit `scope` parameter is a ceiling: RFC 6749 §3.3 lets a server issue
- * less than was requested, never more. When the client names nothing — which is
- * what ChatGPT does — every supported scope is offered instead of falling back to
- * a conservative default, because that default is unreachable otherwise: the
- * client cannot ask for more, and a consent screen can only confirm what was
- * requested. The result was a connector permanently stuck read-only.
+ * **Every supported scope is always offerable, and the human decides.** Treating
+ * the requested scope as a hard ceiling created a dead end: a client is told its
+ * scope at registration, requests exactly that thereafter, and a consent screen
+ * that can only confirm what was asked for can never widen it. A connector that
+ * registered read-only stayed read-only forever, and nothing in either system
+ * could change that.
  *
- * Pure, and kept out of the `server-only` modules, so this decision is testable
- * on its own.
+ * RFC 6749 §3.3 permits this. A server may issue a scope set different from the
+ * request; the only requirement is that the token response say what was actually
+ * granted, which `/oauth/token` does via its `scope` field. So a client asking for
+ * less than it needs is recoverable by a human ticking a box, and a client asking
+ * for more still gets only what that human approves.
+ *
+ * What the client asked for is preserved as the pre-ticked default, so the common
+ * path is still one click and nothing is silently widened without being seen.
+ *
+ * Pure, and outside the `server-only` modules, so this decision is testable alone.
  */
-export function selectableScopes(requestedScope: string | null | undefined): Scope[] {
+export function scopeChoices(requestedScope: string | null | undefined): {
+  selectable: Scope[];
+  preselected: Scope[];
+} {
   const explicit = parseScopes(requestedScope);
-  return explicit.length > 0 ? explicit : [...SUPPORTED_SCOPES];
+  return {
+    selectable: [...SUPPORTED_SCOPES],
+    preselected: explicit.length > 0 ? explicit : [...SUPPORTED_SCOPES],
+  };
 }
 
 /**
