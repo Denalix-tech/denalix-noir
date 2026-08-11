@@ -79,12 +79,14 @@ const reviewSchema = z.object({
 });
 
 /**
- * Approves a request: creates the account, grants the role, and returns a
- * one-time link the person uses to choose a password.
+ * Approves a request: creates the account, grants the role, and emails a one-time
+ * link the person uses to choose their own password.
  *
- * `generateLink` does not send mail. With SMTP configured Supabase emails the
- * invite itself; without it the superadmin passes the returned link on. Either
- * way the link is the only way in, and it lands on `/admin/reset-password`.
+ * Uses `inviteUserByEmail`, which both creates the account and sends the mail
+ * through the project's SMTP. If sending fails for any reason it falls back to
+ * `generateLink` and surfaces the link to the superadmin, so an approval is never
+ * blocked by the mail server. Either way the link lands on
+ * `/admin/reset-password`, because a new account has no password to log in with.
  */
 export async function approveAccessRequestAction(
   _prevState: ReviewState,
@@ -128,6 +130,7 @@ export async function approveAccessRequestAction(
 
   const match = existing.users.find((user) => user.email?.toLowerCase() === email);
   let inviteLink: string | undefined;
+  let emailFailed: string | undefined;
 
   if (match) {
     const { error: roleError } = await admin
@@ -138,31 +141,53 @@ export async function approveAccessRequestAction(
       return { error: "Could not grant the role." };
     }
   } else {
-    // Targets the auth callback, not the login page: a new account has no
-    // password yet, so a login form would be a dead end.
-    const { data: invited, error: inviteError } = await admin.auth.admin.generateLink({
-      type: "invite",
-      email,
-      options: { redirectTo: absoluteUrl("/admin/auth/callback?next=/admin/reset-password") },
-    });
+    // `inviteUserByEmail` creates the account AND sends the invitation through the
+    // project's SMTP. `generateLink` would create the account but send nothing,
+    // leaving a superadmin to copy a URL by hand — which is what happened before
+    // outbound email existed.
+    //
+    // Targets the auth callback, not the login page: a new account has no password
+    // yet, so a login form would be a dead end.
+    const redirectTo = absoluteUrl("/admin/auth/callback?next=/admin/reset-password");
 
-    if (inviteError || !invited.user) {
-      console.error("[access] invite failed", { message: inviteError?.message });
-      return { error: inviteError?.message ?? "Could not create the account." };
+    const invited = await admin.auth.admin.inviteUserByEmail(email, { redirectTo });
+    let newUserId = invited.data.user?.id;
+
+    if (invited.error || !newUserId) {
+      // Sending failed — a rate limit, a bad SMTP credential, a rejected
+      // recipient. Fall back to generateLink, which creates the account without
+      // sending, and hand the link to the superadmin so an approval is never
+      // stuck waiting on the mail server.
+      console.error("[access] invite email failed, falling back to a manual link", {
+        message: invited.error?.message,
+      });
+
+      const generated = await admin.auth.admin.generateLink({
+        type: "invite",
+        email,
+        options: { redirectTo },
+      });
+
+      if (generated.error || !generated.data.user) {
+        console.error("[access] invite fallback failed", { message: generated.error?.message });
+        return { error: generated.error?.message ?? "Could not create the account." };
+      }
+
+      newUserId = generated.data.user.id;
+      inviteLink = generated.data.properties?.action_link;
+      emailFailed = invited.error?.message ?? "unknown error";
     }
 
     const { error: roleError } = await admin
       .from("profiles")
       .upsert(
-        { id: invited.user.id, role: parsed.data.role, display_name: request.name },
+        { id: newUserId, role: parsed.data.role, display_name: request.name },
         { onConflict: "id" },
       );
     if (roleError) {
       console.error("[access] role grant failed", { message: roleError.message });
       return { error: "Account created but the role could not be granted." };
     }
-
-    inviteLink = invited.properties?.action_link;
   }
 
   const { error: statusError } = await admin
@@ -180,9 +205,19 @@ export async function approveAccessRequestAction(
 
   revalidatePath("/admin/people");
 
+  const roleLabel = parsed.data.role === "owner" ? "superadmin" : "admin";
+
+  if (emailFailed) {
+    return {
+      success: `Approved ${email} as ${roleLabel}, but the invitation email could not be sent (${emailFailed}). Send them this link instead.`,
+      inviteLink,
+    };
+  }
+
   return {
-    success: `Approved ${email} as ${parsed.data.role === "owner" ? "superadmin" : "admin"}.`,
-    inviteLink,
+    success: match
+      ? `${email} already had an account and is now ${roleLabel}.`
+      : `Approved ${email} as ${roleLabel}. An invitation email has been sent so they can set their own password.`,
   };
 }
 
