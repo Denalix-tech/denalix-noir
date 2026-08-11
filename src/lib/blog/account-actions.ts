@@ -3,10 +3,9 @@
 import { createClient as createStandaloneClient } from "@supabase/supabase-js";
 
 import { loadAdminContext } from "./authz";
-import { changePasswordSchema, fieldErrors, formString, signUpSchema } from "./schema";
-import { inviteCodeMatches, isSignUpEnabled } from "./signup-config";
+import { changePasswordSchema, fieldErrors, formString } from "./schema";
 import type { Database } from "@/lib/supabase/database.types";
-import { getSupabaseConfig, isSupabaseConfigured } from "@/lib/supabase/env";
+import { getSupabaseConfig } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -23,85 +22,11 @@ import { createClient } from "@/lib/supabase/server";
  * The invite code only suppresses drive-by signups. It is not authorization.
  */
 
-export type SignUpState = {
-  formError?: string;
-  fieldErrors?: Record<string, string>;
-  /** Set once the request is recorded, so the form can be replaced by a notice. */
-  submitted?: boolean;
-  /** True when the address already had an account; deliberately not distinguished to the user. */
-  needsConfirmation?: boolean;
-};
-
 export type ChangePasswordState = {
   formError?: string;
   fieldErrors?: Record<string, string>;
   success?: string;
 };
-
-// ---------------------------------------------------------------------------
-// Request access
-// ---------------------------------------------------------------------------
-
-export async function requestAccessAction(
-  _prevState: SignUpState,
-  formData: FormData,
-): Promise<SignUpState> {
-  if (!isSupabaseConfigured()) {
-    return { formError: "Sign-up is unavailable because Supabase is not configured." };
-  }
-
-  if (!isSignUpEnabled()) {
-    return {
-      formError: "Sign-up is currently closed. Ask a superadmin to invite you directly.",
-    };
-  }
-
-  const parsed = signUpSchema.safeParse({
-    email: formString(formData, "email"),
-    password: formString(formData, "password"),
-    confirmPassword: formString(formData, "confirmPassword"),
-    inviteCode: formString(formData, "inviteCode"),
-  });
-
-  if (!parsed.success) {
-    return { fieldErrors: fieldErrors(parsed.error) };
-  }
-
-  if (!inviteCodeMatches(parsed.data.inviteCode)) {
-    // One generic message, and no field-level hint, so the form cannot be used
-    // to test codes cheaply.
-    return { formError: "That invite code is not valid." };
-  }
-
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({
-    email: parsed.data.email,
-    password: parsed.data.password,
-  });
-
-  if (error) {
-    console.error("[account] sign-up failed", { message: error.message });
-
-    // Supabase rate-limits this endpoint itself; surface that plainly because it
-    // is the one failure a legitimate user can resolve by waiting.
-    if (error.status === 429) {
-      return { formError: "Too many attempts. Wait a minute and try again." };
-    }
-
-    // Never distinguish "already registered" from other failures: that turns the
-    // form into an account-enumeration oracle.
-    return {
-      formError: "Could not complete the request. Check the address and try again.",
-    };
-  }
-
-  // `signUp` returns a user with no identities when the address already exists,
-  // rather than erroring, so the success path covers both cases identically.
-  return {
-    submitted: true,
-    needsConfirmation: !data.session,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Change password

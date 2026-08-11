@@ -2,20 +2,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { SignUpForm } from "@/components/admin/SignUpForm";
+import { AccessRequestForm } from "@/components/admin/AccessRequestForm";
 import { Logo } from "@/components/ui/Logo";
-import { isSignUpEnabled } from "@/lib/blog/signup-config";
 import { loadAdminContext } from "@/lib/blog/authz";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 /**
- * Self-service access request.
+ * Request admin access.
  *
- * Creating an account here grants nothing: `signUp` writes an `auth.users` row
- * and no `profiles` row, and only a superadmin can insert the latter. So this
- * page changes the *shape* of onboarding — request-then-approve instead of
- * invite-then-accept — without weakening the guarantee that access is always
- * granted deliberately by a human.
+ * Asking creates no account — only a row in `access_requests`. A superadmin
+ * approves, which creates the account, grants the role, and produces a one-time
+ * link the person uses to choose their own password.
+ *
+ * That ordering replaced an invite-code form that asked a stranger to pick a
+ * password up front. It left half-formed accounts behind when a request was
+ * refused, and it needed a shared code that had to be distributed and rotated —
+ * a credential to manage for no security benefit, since approval was always the
+ * real gate.
  */
 
 export const metadata: Metadata = {
@@ -29,8 +32,6 @@ export default async function AdminSignUpPage() {
   // Somebody already signed in has no use for this page.
   const context = await loadAdminContext();
   if (context.ok) redirect("/admin/posts");
-
-  const enabled = isSignUpEnabled();
 
   return (
     <main className="flex min-h-screen items-center justify-center px-6 py-16">
@@ -46,8 +47,9 @@ export default async function AdminSignUpPage() {
           Request admin access
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          Requests are reviewed by a superadmin. You will not be able to sign in
-          until one approves your account.
+          Give us the email address you want access for. A superadmin reviews the
+          request, and if it is approved you will get a one-time link to set your
+          own password.
         </p>
 
         {!isSupabaseConfigured() ? (
@@ -55,23 +57,11 @@ export default async function AdminSignUpPage() {
             role="alert"
             className="mt-6 rounded-sm border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
           >
-            Supabase is not configured yet. Add the environment variables described in{" "}
-            <code className="font-mono">README.md</code> to enable sign-up.
-          </div>
-        ) : !enabled ? (
-          <div
-            role="alert"
-            className="mt-6 rounded-sm border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed text-amber-100"
-          >
-            <p className="font-medium">Sign-up is closed.</p>
-            <p className="mt-1.5">
-              No invite code is configured on this deployment, so requests are not
-              being accepted. A superadmin can still add you directly from the
-              People screen.
-            </p>
+            Supabase is not configured yet, so requests cannot be recorded. See{" "}
+            <code className="font-mono">README.md</code>.
           </div>
         ) : (
-          <SignUpForm />
+          <AccessRequestForm />
         )}
 
         <p className="mt-8 text-sm text-muted">
@@ -82,6 +72,11 @@ export default async function AdminSignUpPage() {
           >
             Sign in
           </Link>
+        </p>
+
+        <p className="mt-4 text-xs leading-relaxed text-muted-soft">
+          No account is created until a superadmin approves the request, and no
+          password is chosen until then either.
         </p>
       </div>
     </main>

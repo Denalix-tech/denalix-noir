@@ -102,25 +102,6 @@ const passwordField = z
   .max(PASSWORD_MAX, `Use ${PASSWORD_MAX} characters or fewer.`);
 
 /**
- * Self-service access request.
- *
- * The invite code is checked in the Server Action, not here — a mismatch must
- * read as one generic failure rather than a field-level hint that would let
- * someone probe codes against a form.
- */
-export const signUpSchema = z
-  .object({
-    email: z.email("Enter a valid email address."),
-    password: passwordField,
-    confirmPassword: z.string(),
-    inviteCode: z.string().min(1, "An invite code is required."),
-  })
-  .refine((values) => values.password === values.confirmPassword, {
-    message: "Passwords do not match.",
-    path: ["confirmPassword"],
-  });
-
-/**
  * Public consultation request.
  *
  * Limits mirror the CHECK constraints in
@@ -148,6 +129,23 @@ export const consultationRequestSchema = z.object({
     .trim()
     .min(10, "A sentence or two about what you need is enough.")
     .max(2000, "Please keep this under 2000 characters."),
+});
+
+/**
+ * Requesting admin access.
+ *
+ * Email only, plus two optional fields. Deliberately no password: nobody should
+ * choose credentials for an account that may never be approved, and a declined
+ * request should leave no login behind.
+ */
+export const accessRequestSchema = z.object({
+  email: z.email("Enter the email address you want access for.").max(320),
+  name: z.string().trim().max(120, "Name must be 120 characters or fewer.").optional(),
+  reason: z
+    .string()
+    .trim()
+    .max(1000, "Please keep this under 1000 characters.")
+    .optional(),
 });
 
 /** Requesting a recovery email. Deliberately reveals nothing about the address. */

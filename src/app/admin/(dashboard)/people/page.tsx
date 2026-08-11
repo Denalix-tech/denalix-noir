@@ -1,8 +1,10 @@
 import Link from "next/link";
 
+import { AccessRequestList } from "@/components/admin/AccessRequestList";
 import { InviteForm } from "@/components/admin/InviteForm";
 import { PeopleList } from "@/components/admin/PeopleList";
 import { loadOwnerContext } from "@/lib/blog/authz";
+import { listPendingAccessRequests } from "@/lib/blog/access-requests";
 import { countOwners, listPeople } from "@/lib/blog/people";
 import { hasServiceRoleKey } from "@/lib/supabase/admin";
 
@@ -47,7 +49,11 @@ export default async function PeoplePage() {
     );
   }
 
-  const [people, ownerCount] = await Promise.all([listPeople(), countOwners()]);
+  const [people, ownerCount, accessRequests] = await Promise.all([
+    listPeople(),
+    countOwners(),
+    listPendingAccessRequests(context.supabase),
+  ]);
 
   // Accounts that exist without a role: self-service requests, and invites never
   // accepted. Granting a role is the approval.
@@ -75,7 +81,9 @@ export default async function PeoplePage() {
         </div>
       ) : null}
 
-      <div className="mt-8">
+      <AccessRequestList requests={accessRequests} />
+
+      <div className="mt-10">
         <InviteForm />
       </div>
 

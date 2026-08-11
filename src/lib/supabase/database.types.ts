@@ -26,6 +26,9 @@ export type OAuthTokenKind = "access" | "refresh";
  */
 export type ConsultationStatus = "new" | "contacted" | "archived";
 
+/** An access request is a request, not an account. Approval creates the account. */
+export type AccessRequestStatus = "pending" | "approved" | "declined";
+
 /** Postgres `jsonb`, as far as the client is concerned. */
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
@@ -118,6 +121,39 @@ export type Database = {
       // RLS is enabled with no policies, so these are reachable only with the
       // service-role key. See 20260810120000_add_mcp_oauth.sql.
       // -------------------------------------------------------------------
+
+      /**
+       * Admin-access requests from /admin/signup. Holds no credentials: the
+       * password is set by the person against Supabase Auth after approval.
+       */
+      access_requests: {
+        Row: {
+          id: string;
+          email: string;
+          name: string | null;
+          reason: string | null;
+          status: AccessRequestStatus;
+          requested_at: string;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          name?: string | null;
+          reason?: string | null;
+          status?: AccessRequestStatus;
+          requested_at?: string;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+        };
+        Update: {
+          status?: AccessRequestStatus;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+        };
+        Relationships: [];
+      };
 
       /**
        * Public contact-form submissions. RLS gives anon no policy at all — the
