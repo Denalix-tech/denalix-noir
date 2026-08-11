@@ -120,6 +120,36 @@ export const signUpSchema = z
     path: ["confirmPassword"],
   });
 
+/**
+ * Public consultation request.
+ *
+ * Limits mirror the CHECK constraints in
+ * `20260811060000_add_consultation_requests.sql`. The two long fields have a
+ * **minimum** as well as a maximum: a one-word answer to "what does your business
+ * do" produces an enquiry nobody can reply to usefully, which wastes the sender's
+ * time as much as ours.
+ */
+export const consultationRequestSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Tell us your name.")
+    .max(120, "Name must be 120 characters or fewer."),
+  email: z.email("Enter an email address we can reply to.").max(320),
+  company: z.string().trim().max(160, "Company must be 160 characters or fewer.").optional(),
+  phone: z.string().trim().max(40, "Phone must be 40 characters or fewer.").optional(),
+  businessDescription: z
+    .string()
+    .trim()
+    .min(10, "A sentence or two about the business is enough.")
+    .max(2000, "Please keep this under 2000 characters."),
+  helpNeeded: z
+    .string()
+    .trim()
+    .min(10, "A sentence or two about what you need is enough.")
+    .max(2000, "Please keep this under 2000 characters."),
+});
+
 /** Requesting a recovery email. Deliberately reveals nothing about the address. */
 export const requestResetSchema = z.object({
   email: z.email("Enter a valid email address."),

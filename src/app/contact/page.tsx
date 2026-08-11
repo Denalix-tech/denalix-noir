@@ -3,6 +3,7 @@ import { Mail } from "lucide-react";
 import { Navbar } from "@/components/sections/Navbar";
 import { Footer } from "@/components/sections/Footer";
 import { CTASection } from "@/components/sections/CTASection";
+import { ConsultationForm } from "@/components/contact/ConsultationForm";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { Reveal, RevealGroup, RevealItem } from "@/components/ui/Reveal";
 import { site } from "@/lib/site-config";
@@ -28,16 +29,18 @@ export const metadata: Metadata = {
 };
 
 /**
- * Deliberately no form: this page keeps the existing mailto flow and collects
- * no personal data. The steps below describe the process without committing to
- * a response time, which is not ours to promise.
+ * This page now carries a form, reversing the earlier "no form, mailto only,
+ * collects no personal data" decision. Two consequences kept deliberately:
+ * the mailto address stays visible for anyone who would rather not fill in a
+ * form, and the steps below still avoid promising a response time, which is not
+ * ours to commit to on the company's behalf.
  */
 const whatHappensNext = [
   {
     step: "1",
     title: "You describe the problem",
     description:
-      "Tell us which workflow, system, or customer experience is causing friction. A few sentences is enough to start — there is no form to fill in.",
+      "Tell us which workflow, system, or customer experience is causing friction — either through the form or by email. A few sentences is enough to start.",
   },
   {
     step: "2",
@@ -74,6 +77,27 @@ export default function ContactPage() {
               <Mail className="h-4 w-4" aria-hidden="true" />
               {site.email}
             </a>
+          </Reveal>
+        </section>
+
+        {/* The form the "Book a Consultation" CTAs lead to. `scroll-mt` keeps the
+            heading clear of the fixed navbar when linked to with #consultation. */}
+        <section id="consultation" className="container-px mx-auto mt-16 max-w-3xl scroll-mt-28">
+          <Reveal>
+            <h2 className="font-display text-2xl font-semibold text-white">
+              Book a consultation
+            </h2>
+            <p className="mt-3 max-w-prose text-sm leading-relaxed text-muted">
+              Four short answers are enough. The two questions about your business
+              are the ones that let us reply with something useful instead of asking
+              you to explain it twice.
+            </p>
+          </Reveal>
+
+          <Reveal>
+            <div className="mt-8">
+              <ConsultationForm />
+            </div>
           </Reveal>
         </section>
 

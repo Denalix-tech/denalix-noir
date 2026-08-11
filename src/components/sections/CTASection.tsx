@@ -156,7 +156,9 @@ export function CTASection() {
               {finalCta.body}
             </p>
             <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <GlowButton href={`mailto:${site.email}`}>{finalCta.cta}</GlowButton>
+              {/* The primary CTA now leads to the form; the address stays beside it
+                  for anyone who would rather just send an email. */}
+              <GlowButton href="/contact#consultation">{finalCta.cta}</GlowButton>
               <a
                 href={`mailto:${site.email}`}
                 className="inline-flex items-center gap-2 text-sm font-medium text-white/70 transition-colors hover:text-white"

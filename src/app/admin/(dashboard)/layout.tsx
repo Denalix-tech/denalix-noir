@@ -68,6 +68,12 @@ export default async function AdminDashboardLayout({
                 </Link>
               ) : null}
               <Link
+                href="/admin/requests"
+                className="text-sm font-medium text-muted transition-colors hover:text-white"
+              >
+                Requests
+              </Link>
+              <Link
                 href="/admin/account"
                 className="text-sm font-medium text-muted transition-colors hover:text-white"
               >

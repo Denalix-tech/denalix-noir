@@ -5,7 +5,7 @@ export const site = {
   tagline: "Modernize. Automate. Scale with confidence.",
   description:
     "Denalix Tech helps startups, local businesses, healthcare teams, and growing companies turn manual chaos into digital clarity. We find the operational leaks, build the right systems, and create the technology foundation needed to grow.",
-  email: "hello@denalixtech.com",
+  email: "contact@denalixtech.com",
   location: "Remote-first · Serving clients everywhere",
 };
 

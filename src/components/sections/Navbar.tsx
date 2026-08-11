@@ -59,7 +59,7 @@ export function Navbar() {
             >
               Sign in
             </Link>
-            <GlowButton href="/contact" className="!px-5 !py-2.5 text-xs">
+            <GlowButton href="/contact#consultation" className="!px-5 !py-2.5 text-xs">
               {hero.primaryCta}
             </GlowButton>
           </div>
@@ -101,7 +101,7 @@ export function Navbar() {
                   Sign in
                 </Link>
                 <div className="mt-2">
-                  <GlowButton href="/contact" className="w-full justify-center" >
+                  <GlowButton href="/contact#consultation" className="w-full justify-center" >
                     {hero.primaryCta}
                   </GlowButton>
                 </div>

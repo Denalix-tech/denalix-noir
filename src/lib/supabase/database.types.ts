@@ -20,6 +20,12 @@ export type ProfileRole = "owner" | "admin";
 /** Access tokens are short-lived; refresh tokens rotate on every use. */
 export type OAuthTokenKind = "access" | "refresh";
 
+/**
+ * Triage state for a contact-form submission. There is no "deleted" — a request
+ * someone took the trouble to send is archived, not dropped.
+ */
+export type ConsultationStatus = "new" | "contacted" | "archived";
+
 /** Postgres `jsonb`, as far as the client is concerned. */
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
@@ -112,6 +118,45 @@ export type Database = {
       // RLS is enabled with no policies, so these are reachable only with the
       // service-role key. See 20260810120000_add_mcp_oauth.sql.
       // -------------------------------------------------------------------
+
+      /**
+       * Public contact-form submissions. RLS gives anon no policy at all — the
+       * only writer is the Server Action using the service role.
+       */
+      consultation_requests: {
+        Row: {
+          id: string;
+          name: string;
+          email: string;
+          company: string | null;
+          phone: string | null;
+          business_description: string;
+          help_needed: string;
+          status: ConsultationStatus;
+          created_at: string;
+          handled_at: string | null;
+          handled_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          email: string;
+          company?: string | null;
+          phone?: string | null;
+          business_description: string;
+          help_needed: string;
+          status?: ConsultationStatus;
+          created_at?: string;
+          handled_at?: string | null;
+          handled_by?: string | null;
+        };
+        Update: {
+          status?: ConsultationStatus;
+          handled_at?: string | null;
+          handled_by?: string | null;
+        };
+        Relationships: [];
+      };
 
       oauth_clients: {
         Row: {

@@ -111,7 +111,7 @@ export function Hero() {
             transition={{ duration: 0.75, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row"
           >
-            <GlowButton href="/#contact">{hero.primaryCta}</GlowButton>
+            <GlowButton href="/contact#consultation">{hero.primaryCta}</GlowButton>
             <GlowButton href="/#how-it-works" variant="ghost">
               {hero.secondaryCta}
             </GlowButton>
