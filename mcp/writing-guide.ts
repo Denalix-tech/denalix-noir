@@ -107,9 +107,22 @@ long for a search result. Write it without the brand.
 ## 8. Cover image
 
 Call \`generate_cover_image\` and pass the returned \`url\` and \`alt\` to
-\`create_draft\`. The generated alt text describes the typographic cover, which is
-correct. If a human later swaps in a photo or screenshot, the alt text must be
-rewritten to describe what the image shows.
+\`create_draft\`. It always returns a usable cover.
+
+**Do not pass an image you generated in this conversation.** Its URL is
+session-scoped and not publicly readable, so this server cannot fetch it — the
+call will simply fall back to the brand cover. That is a platform limitation, not
+a setting to change. If you have generated a good image, say so in your reply and
+tell the human they can upload it themselves on the post's edit screen.
+
+\`imageUrl\` is for artwork **already hosted at a public https URL** — an asset on
+the site, a stock image the human has licensed and linked. PNG, JPEG, or WebP;
+SVG is refused. It is cropped to 1200×630. When you use it, also pass \`imageAlt\`
+describing what the image *shows*: the default brand-cover alt text would describe
+a cover that is not what was uploaded.
+
+Omit \`imageUrl\` and you get a typographic cover in the site's brand, whose
+generated alt text is already correct.
 
 ## 9. Claims you must never invent
 

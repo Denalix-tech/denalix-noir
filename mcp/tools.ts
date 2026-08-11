@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import * as db from "./adapters/supabase";
 import { coverAltText, renderCoverPng, COVER_WIDTH, COVER_HEIGHT } from "./cover-image";
+import { fetchExternalImage } from "./image-fetch";
 import { errorResult, textResult } from "./lib";
 import { loadSites, resolveSite, siteKeys, type SiteConfig } from "./sites";
 import { writingGuide } from "./writing-guide";
@@ -277,9 +278,9 @@ function registerWriteTools(server: McpServer): void {
   server.registerTool(
     "generate_cover_image",
     {
-      title: "Generate a brand cover image",
+      title: "Generate or import a cover image",
       description:
-        "Render a 1200x630 cover image in the target site's own brand system from the post title, and upload it to that site's storage. Returns a public URL and alt text for use in create_draft. Note: this composes a design system into a real PNG — it is not a photographic/diffusion image.",
+        "Produce a 1200x630 cover and upload it to the site's storage, returning a public URL and alt text for create_draft. Pass imageUrl to import your own artwork from a PUBLICLY reachable https URL; omit it to compose a typographic cover in the site's brand. If an imageUrl is supplied but cannot be used, the brand cover is produced instead and the response says why — so this tool always yields a usable cover. NOTE: images generated inside a ChatGPT conversation are not publicly readable and cannot be imported; see the `imageUrl` guidance.",
       inputSchema: {
         site: siteParam,
         title: z.string().describe("Post title, rendered as the cover headline"),
@@ -288,18 +289,65 @@ function registerWriteTools(server: McpServer): void {
           .string()
           .optional()
           .describe("Small label above the title, e.g. 'Workflow Automation'"),
+        imageUrl: z
+          .string()
+          .optional()
+          .describe(
+            "Optional https URL of a PNG/JPEG/WebP to use as the cover, cropped to 1200x630. Must be publicly reachable without authentication — an image you generated in this chat is NOT (its URL is session-scoped), so do not pass one. Use this only for artwork already hosted somewhere public. SVG is refused.",
+          ),
+        imageAlt: z
+          .string()
+          .optional()
+          .describe(
+            "Alt text describing what an imported image SHOWS. Required in practice when imageUrl is used: the generated brand-cover alt text would describe a cover that is not what was uploaded.",
+          ),
       },
     },
-    async ({ site: siteKey, title, slug, eyebrow }) => {
+    async ({ site: siteKey, title, slug, eyebrow, imageUrl, imageAlt }) => {
       try {
         const site = resolveSite(siteKey);
-        const png = await renderCoverPng({ title, slug, eyebrow, brand: site.brand });
+
+        let png: Buffer | null = null;
+        let source = "composed-brand-cover";
+        let alt = coverAltText(title, site.brand.wordmark);
+        let fellBackBecause: string | null = null;
+
+        if (imageUrl) {
+          try {
+            const fetched = await fetchExternalImage(imageUrl);
+            png = fetched.png;
+            source = `imported (${fetched.sourceType}, ${fetched.sourceBytes} bytes)`;
+            // The brand-cover alt text describes a typographic cover, so it would
+            // be actively wrong for imported artwork. Better to say so than to
+            // attach a confidently incorrect description.
+            alt =
+              imageAlt?.trim() ||
+              "Cover image for this article. Replace this alt text with a description of what the image shows.";
+          } catch (err) {
+            // Never fail the call for a bad URL: the brand cover is always
+            // available, and a post with a cover beats an error.
+            fellBackBecause = message(err);
+          }
+        }
+
+        if (!png) {
+          png = await renderCoverPng({ title, slug, eyebrow, brand: site.brand });
+        }
+
         const { url } = await db.uploadCover(site, png, slug);
 
         return textResult({
           site: siteEcho(site),
           url,
-          alt: coverAltText(title, site.brand.wordmark),
+          alt,
+          source,
+          ...(fellBackBecause
+            ? {
+                fellBackToBrandCover: true,
+                reason: fellBackBecause,
+                note: "The imported image was not usable, so the brand cover was produced instead. The returned url is valid and ready for create_draft.",
+              }
+            : {}),
           width: COVER_WIDTH,
           height: COVER_HEIGHT,
           bytes: png.length,

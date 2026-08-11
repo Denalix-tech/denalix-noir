@@ -1,6 +1,7 @@
 "use server";
 
 import { loadAdminContext } from "./authz";
+import { MAX_IMAGE_BYTES as MAX_BYTES, sniffImageType } from "./image-type";
 
 /**
  * Cover image upload.
@@ -15,35 +16,8 @@ export type UploadState = {
   error?: string;
 };
 
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB, mirrored by the bucket config
-
+/** Public bucket created by the blog migration. */
 const BUCKET = "blog-images";
-
-type SniffedType = { mime: "image/jpeg" | "image/png" | "image/webp"; ext: "jpg" | "png" | "webp" };
-
-function sniffImageType(bytes: Uint8Array): SniffedType | null {
-  // JPEG: FF D8 FF
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
-    return { mime: "image/jpeg", ext: "jpg" };
-  }
-
-  // PNG: 89 50 4E 47 0D 0A 1A 0A
-  const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-  if (bytes.length >= 8 && PNG.every((byte, i) => bytes[i] === byte)) {
-    return { mime: "image/png", ext: "png" };
-  }
-
-  // WebP: "RIFF" .... "WEBP"
-  if (bytes.length >= 12) {
-    const riff = String.fromCharCode(...bytes.subarray(0, 4));
-    const webp = String.fromCharCode(...bytes.subarray(8, 12));
-    if (riff === "RIFF" && webp === "WEBP") {
-      return { mime: "image/webp", ext: "webp" };
-    }
-  }
-
-  return null;
-}
 
 export async function uploadCoverImageAction(
   _prevState: UploadState,
