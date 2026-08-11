@@ -2,6 +2,7 @@ import { OAuthClientMetadataSchema } from "@modelcontextprotocol/sdk/shared/auth
 
 import { DEFAULT_SCOPES, isMcpOAuthEnabled, parseScopes } from "@/lib/mcp-auth/config";
 import { registerClient } from "@/lib/mcp-auth/store";
+import type { Json } from "@/lib/supabase/database.types";
 import { hasServiceRoleKey } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 
@@ -130,7 +131,14 @@ export async function POST(request: Request): Promise<Response> {
   const granted = requested.length > 0 ? requested : DEFAULT_SCOPES;
 
   try {
-    const client = await registerClient({ ...metadata, scope: granted.join(" ") });
+    // `received` is the unmodified body, so raw_metadata records what the client
+    // actually sent rather than the scope we derived from it. Storing the derived
+    // value defeated the point of keeping the registration document — it made it
+    // impossible to tell afterwards whether a client had requested scopes at all.
+    const client = await registerClient(
+      { ...metadata, scope: granted.join(" ") },
+      body as Json,
+    );
 
     // RFC 7591 §3.2.1: 201 with the registered metadata echoed back.
     return Response.json(

@@ -1,6 +1,6 @@
 import type { OAuthClientRow } from "@/lib/supabase/database.types";
 
-import { SUPPORTED_SCOPES, parseScopes, type Scope } from "./config";
+import { SUPPORTED_SCOPES, selectableScopes, type Scope } from "./config";
 import type { AuthorizeParams } from "./params";
 import { findClient, isRegisteredRedirectUri } from "./store";
 
@@ -24,7 +24,24 @@ export { readAuthorizeParams, buildRedirect, type AuthorizeParams } from "./para
  */
 
 export type AuthorizeValidation =
-  | { kind: "ok"; client: OAuthClientRow; params: AuthorizeParams; scopes: Scope[] }
+  | {
+      kind: "ok";
+      client: OAuthClientRow;
+      params: AuthorizeParams;
+      /**
+       * What the approving superadmin may grant.
+       *
+       * When the client names scopes explicitly, that is the ceiling — RFC 6749
+       * lets a server issue less than was asked for, never more. When it names
+       * none (ChatGPT does not), every supported scope is offered, because
+       * otherwise a conservative server-side default decides for the human and
+       * there is no way to elevate it: the client cannot ask, and the screen
+       * would only be able to confirm what it never requested.
+       */
+      selectable: Scope[];
+      /** Ticked when the screen first renders. */
+      preselected: Scope[];
+    }
   /** Cannot safely redirect. Render an error page. */
   | { kind: "fatal"; message: string }
   /** Safe to report to the client's registered redirect URI. */
@@ -98,10 +115,8 @@ export async function validateAuthorizeRequest(
     );
   }
 
-  // Fall back to whatever the client registered with, then to read-only.
-  const scopes = requested.length > 0 ? parseScopes(params.scope) : parseScopes(client.scope);
-  const effective = scopes.length > 0 ? scopes : parseScopes(SUPPORTED_SCOPES[0]);
+  const selectable = selectableScopes(params.scope);
 
-  return { kind: "ok", client, params, scopes: effective };
+  return { kind: "ok", client, params, selectable, preselected: selectable };
 }
 

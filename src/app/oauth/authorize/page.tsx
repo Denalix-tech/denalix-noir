@@ -99,7 +99,7 @@ export default async function AuthorizePage({
     );
   }
 
-  const { client, scopes } = validation;
+  const { client, selectable, preselected } = validation;
   const requestPayload = query.toString();
   const clientLabel = client.client_name?.trim() || client.client_id;
 
@@ -120,58 +120,78 @@ export default async function AuthorizePage({
           Approving issues this application a token that acts on your behalf.
         </p>
 
-        <div className="mt-6 rounded-sm border border-white/10 p-4">
-          <p className="text-xs font-medium uppercase tracking-widest text-muted">
-            Requested access
+        {/* One form, so the checkboxes post with Approve. Deny is separate — it
+            needs no selection. */}
+        <form action={approveAuthorizationAction} className="mt-6">
+          <input type="hidden" name="oauth_request" value={requestPayload} />
+
+          <fieldset className="rounded-sm border border-white/10 p-4">
+            <legend className="px-1 text-xs font-medium uppercase tracking-widest text-muted">
+              Permissions to grant
+            </legend>
+
+            <ul className="mt-2 space-y-4">
+              {selectable.map((scope) => (
+                <li key={scope}>
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      name="scope"
+                      value={scope}
+                      defaultChecked={preselected.includes(scope)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-white"
+                    />
+                    <span className="text-sm leading-relaxed">
+                      <code className="font-mono text-white">{scope}</code>
+                      <span className="mt-1 block text-muted">{SCOPE_DESCRIPTIONS[scope]}</span>
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+
+            <p className="mt-4 text-xs leading-relaxed text-muted-soft">
+              Untick anything you would rather not grant. Without{" "}
+              <code className="font-mono">blog:draft</code> the application can read
+              but not create — which is usually not what you want from a drafting
+              tool.
+            </p>
+          </fieldset>
+
+          <p className="mt-4 text-sm leading-relaxed text-muted-soft">
+            Whatever you grant, this application <span className="text-white">cannot publish</span>,
+            edit live posts, or delete anything. Drafts it creates wait for your
+            review in the admin panel.
           </p>
-          <ul className="mt-3 space-y-3">
-            {scopes.map((scope) => (
-              <li key={scope} className="text-sm leading-relaxed">
-                <code className="font-mono text-white">{scope}</code>
-                <span className="mt-1 block text-muted">{SCOPE_DESCRIPTIONS[scope]}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
 
-        <p className="mt-4 text-sm leading-relaxed text-muted-soft">
-          This application <span className="text-white">cannot publish</span>, edit
-          live posts, or delete anything. Drafts it creates wait for your review in
-          the admin panel.
-        </p>
+          <dl className="mt-6 space-y-1 text-xs text-muted-soft">
+            <div className="flex gap-2">
+              <dt>Redirects to</dt>
+              <dd className="truncate font-mono text-muted">{validation.params.redirectUri}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt>Client ID</dt>
+              <dd className="truncate font-mono text-muted">{client.client_id}</dd>
+            </div>
+          </dl>
 
-        <dl className="mt-6 space-y-1 text-xs text-muted-soft">
-          <div className="flex gap-2">
-            <dt>Redirects to</dt>
-            <dd className="truncate font-mono text-muted">{validation.params.redirectUri}</dd>
-          </div>
-          <div className="flex gap-2">
-            <dt>Client ID</dt>
-            <dd className="truncate font-mono text-muted">{client.client_id}</dd>
-          </div>
-        </dl>
+          <button
+            type="submit"
+            className="mt-8 rounded-sm bg-white px-4 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-90"
+          >
+            Approve
+          </button>
+        </form>
 
-        <div className="mt-8 flex flex-wrap items-center gap-3">
-          <form action={approveAuthorizationAction}>
-            <input type="hidden" name="oauth_request" value={requestPayload} />
-            <button
-              type="submit"
-              className="rounded-sm bg-white px-4 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-90"
-            >
-              Approve
-            </button>
-          </form>
-
-          <form action={denyAuthorizationAction}>
-            <input type="hidden" name="oauth_request" value={requestPayload} />
-            <button
-              type="submit"
-              className="rounded-sm border border-white/15 px-4 py-2 text-sm font-medium text-white transition-colors hover:border-white/40"
-            >
-              Deny
-            </button>
-          </form>
-        </div>
+        <form action={denyAuthorizationAction} className="mt-3">
+          <input type="hidden" name="oauth_request" value={requestPayload} />
+          <button
+            type="submit"
+            className="rounded-sm border border-white/15 px-4 py-2 text-sm font-medium text-white transition-colors hover:border-white/40"
+          >
+            Deny
+          </button>
+        </form>
 
         <p className="mt-6 text-xs leading-relaxed text-muted-soft">
           Only approve applications you started connecting yourself. If you did not

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { loadAdminContext } from "@/lib/blog/authz";
-import { isMcpOAuthEnabled } from "./config";
+import { isMcpOAuthEnabled, type Scope } from "./config";
 import {
   buildRedirect,
   readAuthorizeParams,
@@ -54,12 +54,32 @@ export async function approveAuthorizationAction(formData: FormData): Promise<vo
     );
   }
 
+  // Scopes come from the ticked boxes, intersected with what this request may
+  // grant. Re-derived here rather than trusted from the form, so a crafted POST
+  // cannot widen the grant beyond what the client asked for.
+  const chosen = formData
+    .getAll("scope")
+    .filter((value): value is string => typeof value === "string")
+    .filter((value): value is Scope => (validation.selectable as string[]).includes(value));
+
+  const granted = [...new Set(chosen)];
+
+  if (granted.length === 0) {
+    redirect(
+      buildRedirect(validation.params.redirectUri, {
+        error: "invalid_scope",
+        error_description: "No permissions were granted.",
+        state: validation.params.state,
+      }),
+    );
+  }
+
   const code = await issueAuthorizationCode({
     clientId: validation.client.client_id,
     userId: context.user.id,
     redirectUri: validation.params.redirectUri,
     codeChallenge: validation.params.codeChallenge,
-    scopes: validation.scopes,
+    scopes: granted,
     resource: validation.params.resource,
   });
 

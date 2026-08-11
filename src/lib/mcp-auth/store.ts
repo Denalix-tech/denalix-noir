@@ -52,6 +52,8 @@ function secondsFromNow(seconds: number): string {
  */
 export async function registerClient(
   metadata: OAuthClientMetadata,
+  /** The registration body exactly as received, for diagnosing a misbehaving client. */
+  received?: Json,
 ): Promise<OAuthClientRow> {
   const clientId = generateClientId();
 
@@ -69,7 +71,7 @@ export async function registerClient(
       logo_uri: metadata.logo_uri ?? null,
       software_id: metadata.software_id ?? null,
       software_version: metadata.software_version ?? null,
-      raw_metadata: metadata as unknown as Json,
+      raw_metadata: received ?? (metadata as unknown as Json),
     })
     .select("*")
     .single();

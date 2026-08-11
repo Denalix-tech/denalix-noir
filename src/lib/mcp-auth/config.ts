@@ -80,6 +80,24 @@ export function parseScopes(raw: string | null | undefined): Scope[] {
 }
 
 /**
+ * What the approving superadmin may grant for a given authorization request.
+ *
+ * An explicit `scope` parameter is a ceiling: RFC 6749 §3.3 lets a server issue
+ * less than was requested, never more. When the client names nothing — which is
+ * what ChatGPT does — every supported scope is offered instead of falling back to
+ * a conservative default, because that default is unreachable otherwise: the
+ * client cannot ask for more, and a consent screen can only confirm what was
+ * requested. The result was a connector permanently stuck read-only.
+ *
+ * Pure, and kept out of the `server-only` modules, so this decision is testable
+ * on its own.
+ */
+export function selectableScopes(requestedScope: string | null | undefined): Scope[] {
+  const explicit = parseScopes(requestedScope);
+  return explicit.length > 0 ? explicit : [...SUPPORTED_SCOPES];
+}
+
+/**
  * Lifetimes.
  *
  * Access tokens are deliberately short. The client refreshes silently, and a
