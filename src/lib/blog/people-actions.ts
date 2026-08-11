@@ -93,10 +93,14 @@ export async function invitePersonAction(
   }
 
   // Invite links are emailed, so they must point at the production origin.
+  //
+  // The target is the auth callback, not /admin/login: an invited person has no
+  // password yet, so a login form is a dead end. The callback verifies the invite,
+  // signs them in, and sends them to /admin/reset-password to choose one.
   const { data, error } = await admin.auth.admin.generateLink({
     type: "invite",
     email,
-    options: { redirectTo: absoluteUrl("/admin/login") },
+    options: { redirectTo: absoluteUrl("/admin/auth/callback?next=/admin/reset-password") },
   });
 
   if (error || !data.user) {

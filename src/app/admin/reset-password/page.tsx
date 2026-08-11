@@ -42,13 +42,15 @@ export default async function ResetPasswordPage() {
         </Link>
 
         <h1 className="font-display mt-10 text-2xl font-semibold text-white">
-          Set a new password
+          Set your password
         </h1>
 
         {fromRecovery ? (
           <>
+            {/* Wording covers both arrivals: a recovery link, and an invite where
+                there has never been a password to reset. */}
             <p className="mt-2 text-sm leading-relaxed text-muted">
-              Choose a new password for your account. This link works once.
+              Choose a password for your account. This link works once.
             </p>
             <ResetPasswordForm />
           </>

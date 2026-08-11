@@ -75,9 +75,16 @@ export async function GET(request: NextRequest): Promise<never> {
     failure("That link is missing its token. Request a new one.");
   }
 
-  // A recovery link is the one case that may set a password without knowing the
-  // current one, so it gets the short-lived marker the reset page requires.
-  if (type === "recovery" || params.get("next") === "/admin/reset-password") {
+  // Recovery and invite both legitimately set a password without knowing a
+  // current one — a recovery link because it has been forgotten, an invite
+  // because there has never been one. Both therefore get the short-lived marker
+  // the set-password page requires.
+  //
+  // Without this an invited person was stuck: verifying the invite signs them in,
+  // but they have no password, and /admin/account demands the current one to
+  // change it. Their only way through was "forgot password", which is a strange
+  // thing to ask of someone who has just been invited.
+  if (type === "recovery" || type === "invite" || params.get("next") === "/admin/reset-password") {
     const store = await cookies();
     store.set(RECOVERY_COOKIE, "1", recoveryCookieOptions);
     redirect("/admin/reset-password");
