@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "verify:mcp-oauth": "tsx scripts/verify-mcp-oauth.mts",
-    "recovery-link": "tsx scripts/recovery-link.mts"
+    "recovery-link": "tsx scripts/recovery-link.mts",
+    "reencode-covers": "tsx scripts/reencode-covers.mts"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

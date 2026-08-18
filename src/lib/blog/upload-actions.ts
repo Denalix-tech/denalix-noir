@@ -1,5 +1,7 @@
 "use server";
 
+import sharp from "sharp";
+
 import { loadAdminContext } from "./authz";
 import { MAX_IMAGE_BYTES as MAX_BYTES, sniffImageType } from "./image-type";
 
@@ -9,7 +11,18 @@ import { MAX_IMAGE_BYTES as MAX_BYTES, sniffImageType } from "./image-type";
  * The client-declared MIME type is treated as a hint only — the real type is
  * sniffed from the file's leading bytes, so renaming `payload.svg` to
  * `photo.png` does not get it into the bucket.
+ *
+ * Uploads used to be validated and then stored as received, so a 4 MB phone photo
+ * passed the check and cost every reader 4 MB thereafter. They are now re-encoded
+ * to a 1200x630 WebP: right-sized for the slot it fills, an order of magnitude
+ * smaller, and stripped of whatever metadata or trailing payload the original
+ * carried. The 5 MB cap still applies to the *input*, so a huge file cannot be
+ * used to chew server memory before sharp ever sees it.
  */
+
+/** Matches the cover slot the blog renders, and the MCP server's output. */
+const COVER_WIDTH = 1200;
+const COVER_HEIGHT = 630;
 
 export type UploadState = {
   url?: string;
@@ -44,12 +57,27 @@ export async function uploadCoverImageAction(
     return { error: "Only JPEG, PNG, and WebP images are accepted." };
   }
 
+  // Re-encoded after sniffing, never before: the type check must run on the bytes
+  // as received, not on whatever sharp decided to make of them.
+  let optimized: Buffer;
+  try {
+    optimized = await sharp(bytes)
+      .resize(COVER_WIDTH, COVER_HEIGHT, { fit: "cover", position: "centre" })
+      .webp({ quality: 82, effort: 5 })
+      .toBuffer();
+  } catch (error) {
+    console.error("[admin] cover re-encode failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return { error: "That image could not be processed. Try a different file." };
+  }
+
   // Collision-resistant, admin-owned path. The user id prefix keeps uploads
   // attributable and makes per-user storage policies possible later.
-  const path = `${context.user.id}/${crypto.randomUUID()}.${sniffed.ext}`;
+  const path = `${context.user.id}/${crypto.randomUUID()}.webp`;
 
-  const { error } = await context.supabase.storage.from(BUCKET).upload(path, bytes, {
-    contentType: sniffed.mime,
+  const { error } = await context.supabase.storage.from(BUCKET).upload(path, optimized, {
+    contentType: "image/webp",
     upsert: false,
   });
 
