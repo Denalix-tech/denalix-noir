@@ -72,6 +72,21 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
+      <head>
+        {/*
+          Declared here rather than through `metadata.alternates.types`, because a
+          page that sets `alternates.canonical` replaces the parent's entire
+          `alternates` object — which silently dropped this from every page that
+          declares a canonical, i.e. all of them. In the tree it is hoisted into
+          <head> and nothing can override it.
+        */}
+        <link
+          rel="alternate"
+          type="application/rss+xml"
+          title={`${site.fullName} — Blogs`}
+          href="/feed.xml"
+        />
+      </head>
       <body className="min-h-full flex flex-col bg-ink text-foreground">{children}</body>
     </html>
   );

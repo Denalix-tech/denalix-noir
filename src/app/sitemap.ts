@@ -60,5 +60,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
   }
 
-  return [...staticEntries, ...serviceEntries, ...postEntries];
+  // The feed is a real, crawlable URL; listing it helps discovery.
+  const feedEntry: MetadataRoute.Sitemap = [
+    { url: absoluteUrl("/feed.xml"), changeFrequency: "weekly", priority: 0.4 },
+  ];
+
+  return [...staticEntries, ...serviceEntries, ...postEntries, ...feedEntry];
 }
