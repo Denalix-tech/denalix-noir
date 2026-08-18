@@ -147,6 +147,19 @@ export function buildCoverSvg({ title, slug, eyebrow, brand }: CoverInput): stri
 </svg>`;
 }
 
+/**
+ * Renders the brand cover as WebP.
+ *
+ * Lossless rather than quality-based: the cover is flat colour and type, where
+ * lossy compression produces visible ringing around letterforms and saves little.
+ * Lossless WebP still beats the PNG it replaces — same pixels, smaller file, and
+ * page weight is a ranking factor.
+ */
+export async function renderCoverWebp(input: CoverInput): Promise<Buffer> {
+  const svg = buildCoverSvg(input);
+  return sharp(Buffer.from(svg)).webp({ lossless: true, effort: 6 }).toBuffer();
+}
+
 export async function renderCoverPng(input: CoverInput): Promise<Buffer> {
   const svg = buildCoverSvg(input);
   return sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer();

@@ -86,7 +86,7 @@ The same tool surface is reachable two ways:
 
 - **Claude Code**, over stdio. `mcp/server.ts` is registered in `.mcp.json`, so
   it's picked up automatically. **Restart Claude Code once** after pulling it in.
-  A local transport is unscoped and sees all eight tools.
+  A local transport is unscoped and sees all nine tools.
 - **ChatGPT**, over HTTPS at `/api/mcp`, behind **OAuth 2.1**. A connector must
   be approved by a signed-in `owner`/`admin` on the consent screen, and its token
   carries scopes — `blog:read` sees the six read tools, `blog:draft` adds
@@ -99,7 +99,7 @@ Ask in plain language, naming the site:
 > back office. Read the writing guide first, check the slug, suggest internal
 > links, generate a cover image, and create it as a draft.
 
-Eight tools back that:
+Nine tools back that:
 
 | Tool | What it does for you |
 | --- | --- |
@@ -107,9 +107,10 @@ Eight tools back that:
 | `get_writing_guide` | This document's §5 and §8, addressed to a model. **Clients that can't read this repo have no other source for these rules** |
 | `list_posts` | Existing posts + slugs on that site, so you don't duplicate a topic |
 | `check_slug` | Format validity and availability **on that site**, with a corrected suggestion |
+| `check_seo` | Audits a draft against §5 and §8 before saving — lengths, brand-in-title, answer-first opening, headings, link count, absolutes, and figures that need verifying |
 | `get_link_targets` | That site's commercial pages, their audiences, problems and deliverables |
-| `suggest_internal_links` | Which of those pages a draft should link to, and the phrase that motivates each |
-| `generate_cover_image` | Renders a 1200×630 cover **in that site's brand**, uploads it, returns URL + alt text |
+| `suggest_internal_links` | Which service pages **and published posts** a draft should link to, and the phrase motivating each. Post-to-post links are what build topic clusters |
+| `generate_cover_image` | Renders or imports a 1200×630 cover **in that site's brand**, encodes it as WebP, uploads it, returns URL + alt text |
 | `create_draft` | Creates a **draft**, validated by the same schema the editor uses |
 
 > `mcp/writing-guide.ts` mirrors [§5](#5-the-seo-writing-playbook) and
@@ -131,11 +132,16 @@ each row, not a shortcut around review.
 
 Two things to know:
 
-- **Cover images are composed, not generated.** Real PNGs built from the site's
-  own design system — noir background, gold rule, brand mark, your title —
-  rendered as SVG and rasterised with `sharp`. Free, instant, on-brand, no
-  third-party key. Not photography. If you ever want photographic art, that
-  needs a paid image API, and `generate_cover_image` is the seam it slots into.
+- **Cover images are composed, not generated.** Built from the site's own design
+  system — noir background, gold rule, brand mark, your title — rendered as SVG
+  and rasterised with `sharp`. Free, instant, on-brand, no third-party key. Not
+  photography. Pass `imageUrl` to import artwork already hosted at a public https
+  URL; anything that fails falls back to the brand cover rather than erroring. If
+  you ever want *generated* photographic art, that needs a paid image API, and
+  `generate_cover_image` is the seam it slots into.
+- **Covers are encoded as WebP.** A 1.4 MB imported illustration lands at ~70 KB,
+  and the composed cover drops from 66 KB to 44 KB. Page weight is a ranking
+  factor and the cover is the heaviest thing on a post.
 - **The tools use each site's service-role key and bypass RLS.** The stdio
   server, which holds every registered site's key, stays local — never deploy
   it. The deployed `/api/mcp` route is a deliberately reduced instance:
@@ -355,6 +361,9 @@ your market, or being accountable for a claim, is deliberately yours.
 | Checking a topic isn't already covered | ✅ Yes | `list_posts` (per site) |
 | Drafting the body | ⚙️ Assisted | Claude Code or ChatGPT via MCP; a human must review it |
 | Giving the model these writing rules | ✅ Yes | `get_writing_guide`, from `mcp/writing-guide.ts` |
+| Checking the draft against those rules | ✅ Yes | `check_seo`, and the same findings on `create_draft` |
+| Suggesting post-to-post links (topic clusters) | ⚙️ Suggested | `suggest_internal_links`; **you insert them** |
+| Cover image weight | ✅ Yes | WebP output — a 1.4 MB import becomes ~70 KB |
 | Fact-checking the draft | ❌ **No** | You. This is the whole reason there is no publish tool |
 | Slug generation from the title | ✅ Yes | Editor, for new posts only |
 | Slug format + uniqueness check | ✅ Yes | `check_slug`, the Zod schema, and a DB unique index |

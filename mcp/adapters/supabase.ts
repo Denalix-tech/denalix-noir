@@ -73,6 +73,33 @@ export async function listPosts(
   return data ?? [];
 }
 
+/** A published post, with enough text to match a draft against. */
+export type LinkablePost = {
+  slug: string;
+  title: string;
+  excerpt: string;
+};
+
+/**
+ * Published posts a draft could link to.
+ *
+ * Drafts are excluded on purpose: linking to a URL that currently 404s would ship
+ * a broken link the moment the post goes live, and the target may never be
+ * published at all.
+ */
+export async function listLinkablePosts(site: SiteConfig): Promise<LinkablePost[]> {
+  const client = clientFor(site);
+  const { data, error } = await client
+    .from("posts")
+    .select("slug, title, excerpt")
+    .eq("status", "published")
+    .order("published_at", { ascending: false })
+    .limit(200);
+
+  if (error) throw new Error(`Could not list linkable posts: ${error.message}`);
+  return data ?? [];
+}
+
 export async function checkSlug(
   site: SiteConfig,
   slug: string,
@@ -139,15 +166,20 @@ export async function createDraft(
 
 export async function uploadCover(
   site: SiteConfig,
-  png: Buffer,
+  image: Buffer,
   slug: string,
+  /** Encoding chosen by the caller — WebP for photographs, PNG only where it wins. */
+  encoding: { ext: "webp" | "png"; contentType: "image/webp" | "image/png" } = {
+    ext: "webp",
+    contentType: "image/webp",
+  },
 ): Promise<{ url: string }> {
   const client = clientFor(site);
-  const path = `covers/${slug}-${Date.now().toString(36)}.png`;
+  const path = `covers/${slug}-${Date.now().toString(36)}.${encoding.ext}`;
 
   const { error } = await client.storage
     .from(BUCKET)
-    .upload(path, png, { contentType: "image/png", upsert: false });
+    .upload(path, image, { contentType: encoding.contentType, upsert: false });
 
   if (error) throw new Error(`Upload failed: ${error.message}`);
 

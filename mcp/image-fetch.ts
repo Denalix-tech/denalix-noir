@@ -61,7 +61,7 @@ function isPrivateAddress(address: string): boolean {
   return false;
 }
 
-export type FetchedImage = { png: Buffer; sourceBytes: number; sourceType: string };
+export type FetchedImage = { image: Buffer; sourceBytes: number; sourceType: string };
 
 export class ImageFetchError extends Error {}
 
@@ -151,10 +151,15 @@ export async function fetchExternalImage(rawUrl: string): Promise<FetchedImage> 
   // Re-encoded rather than passed through: normalises to cover dimensions, and
   // rasterising through sharp discards any metadata or trailing payload the
   // original file carried.
-  const png = await sharp(bytes)
+  //
+  // WebP at quality 82, not PNG. Imported artwork is usually photographic or a
+  // gradient illustration, which PNG stores appallingly — a 1200x630 illustration
+  // came out at 1.4 MB, on a page every reader pays for. The same image as WebP is
+  // an order of magnitude smaller with no visible difference at cover size.
+  const image = await sharp(bytes)
     .resize(COVER_WIDTH, COVER_HEIGHT, { fit: "cover", position: "centre" })
-    .png({ compressionLevel: 9 })
+    .webp({ quality: 82, effort: 5 })
     .toBuffer();
 
-  return { png, sourceBytes: total, sourceType: sniffed.mime };
+  return { image, sourceBytes: total, sourceType: sniffed.mime };
 }

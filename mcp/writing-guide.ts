@@ -81,14 +81,24 @@ body; all of that is generated automatically and duplicating it is harmful.
 
 ## 6. Earn 2–4 internal links
 
-The blog exists to pass readers and authority to the commercial pages. Link with
-descriptive anchor text — \`[workflow automation](/services/workflow-automation)\`,
+Two kinds, and both matter.
+
+**Service pages** are why the blog exists: they pass readers and authority to the
+commercial side. **Related posts** build topic clusters — a group of articles that
+link to each other ranks better than the same articles in isolation, because the
+connections tell a search engine the site covers a subject rather than mentioning
+it once.
+
+Link with descriptive anchor text — \`[workflow automation](/services/workflow-automation)\`,
 never "click here". This site's pages:
 
 ${links}
 
-Run \`suggest_internal_links\` on your draft to check your choices. If the post
-supports none of these pages, reconsider whether it is worth publishing.
+Run \`suggest_internal_links\` on your draft: it returns both the service pages and
+any published posts this draft has earned a link to. Link to a related post where
+the argument genuinely calls for it — two posts pointing at each other is a
+cluster; a list of links at the bottom is not. If the post supports no commercial
+page at all, reconsider whether it is worth publishing.
 
 ## 7. Excerpt and SEO description are different things
 
@@ -149,7 +159,14 @@ variants.
    permanent in practice: renaming a published post breaks its URL and there is
    no automatic redirect.
 2. \`list_posts\` — confirm you are not duplicating an existing topic.
-3. \`suggest_internal_links\` — confirm your links are the right ones.
+3. \`suggest_internal_links\` — confirm your links are the right ones, service
+   pages and related posts alike.
+4. \`check_seo\` — audits this draft against everything above: title and
+   description lengths, the brand accidentally in the title, whether you answered
+   before setting the scene, heading structure, link count, unsupported
+   absolutes, and figures that look invented. Fix the failures; use judgement on
+   the warnings. \`create_draft\` reports the same findings, so a weak draft is
+   visible to whoever reviews it either way.
 
 \`create_draft\` creates a **draft only**. It cannot publish, and no tool here
 can. A human reviews it in the site's admin, checks every factual claim, and

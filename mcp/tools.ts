@@ -2,8 +2,9 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import * as db from "./adapters/supabase";
-import { coverAltText, renderCoverPng, COVER_WIDTH, COVER_HEIGHT } from "./cover-image";
+import { coverAltText, renderCoverWebp, COVER_WIDTH, COVER_HEIGHT } from "./cover-image";
 import { fetchExternalImage } from "./image-fetch";
+import { auditDraft } from "./seo-audit";
 import { errorResult, textResult } from "./lib";
 import { loadSites, resolveSite, siteKeys, type SiteConfig } from "./sites";
 import { writingGuide } from "./writing-guide";
@@ -189,6 +190,48 @@ function registerReadTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "check_seo",
+    {
+      title: "Audit a draft against the SEO rules",
+      description:
+        "Check a draft against the rules in get_writing_guide before saving it: title and description lengths, the brand accidentally typed into the title, whether the post answers in its opening rather than setting the scene, heading structure, internal link count, unsupported absolutes, and figures that look invented. Returns findings, not a verdict — fix what matters and use your judgement on the rest. Run this before create_draft.",
+      inputSchema: {
+        site: siteParam,
+        title: z.string().describe("Post title"),
+        content: z.string().describe("Post body as Markdown"),
+        slug: z.string().optional().describe("Intended slug, if chosen"),
+        excerpt: z.string().optional().describe("Card summary"),
+        seoTitle: z.string().optional().describe("Search title, if set"),
+        seoDescription: z.string().optional().describe("Search description, if set"),
+      },
+    },
+    async ({ site: siteKey, title, content, slug, excerpt, seoTitle, seoDescription }) => {
+      try {
+        const site = resolveSite(siteKey);
+        const report = auditDraft({
+          title,
+          content,
+          slug,
+          excerpt,
+          seoTitle,
+          seoDescription,
+          wordmark: site.brand.wordmark,
+        });
+
+        return textResult({
+          site: siteEcho(site),
+          ...report,
+          note: report.counts.fail
+            ? "Failures will be rejected by create_draft's schema. Fix those first."
+            : "Nothing blocking. Warnings are judgement calls — read them before publishing.",
+        });
+      } catch (err) {
+        return errorResult(message(err));
+      }
+    },
+  );
+
+  server.registerTool(
     "get_link_targets",
     {
       title: "Get a site's internal-link targets",
@@ -221,13 +264,17 @@ function registerReadTools(server: McpServer): void {
     {
       title: "Suggest internal links",
       description:
-        "Given draft text, suggest which of a site's pages it should link to and which phrases motivate each link. Internal linking is how a blog post passes value to the commercial pages. Suggestions only — you still write the links into the draft.",
+        "Given draft text, suggest which of a site's pages AND which already-published posts it should link to, with the phrases motivating each. Links to service pages pass value to the commercial pages; links to related posts build the topic clusters that make a group of articles rank better than the same articles in isolation. Suggestions only — you still write the links into the draft.",
       inputSchema: {
         site: siteParam,
         content: z.string().describe("The draft body text (Markdown is fine)"),
+        excludeSlug: z
+          .string()
+          .optional()
+          .describe("Slug of the draft itself, so it is not suggested as a link to itself"),
       },
     },
-    async ({ site: siteKey, content }) => {
+    async ({ site: siteKey, content, excludeSlug }) => {
       try {
         const site = resolveSite(siteKey);
         const haystack = content.toLowerCase();
@@ -242,22 +289,55 @@ function registerReadTools(server: McpServer): void {
           .filter((match) => match.hits.length > 0)
           .sort((a, b) => b.hits.length - a.hits.length);
 
-        if (matches.length === 0) {
+        // Related published posts. Words shorter than six characters are dropped
+        // for the same reason the service-page vocabulary drops them: "system"
+        // and "process" match everything and rank nothing.
+        const published = await db.listLinkablePosts(site);
+        const relatedPosts = published
+          .filter((post) => post.slug !== excludeSlug)
+          .map((post) => {
+            const terms = [
+              ...new Set(
+                `${post.title} ${post.excerpt}`
+                  .toLowerCase()
+                  .split(/[^a-z]+/)
+                  .filter((term) => term.length > 5),
+              ),
+            ];
+            return { post, hits: terms.filter((term) => haystack.includes(term)) };
+          })
+          .filter((match) => match.hits.length >= 2)
+          .sort((a, b) => b.hits.length - a.hits.length)
+          .slice(0, 4)
+          .map((match) => ({
+            url: `/blog/${match.post.slug}`,
+            title: match.post.title,
+            matchedTerms: match.hits.slice(0, 8),
+            strength: match.hits.length,
+          }));
+
+        if (matches.length === 0 && relatedPosts.length === 0) {
           return textResult({
             site: siteEcho(site),
-            matches: [],
+            servicePages: [],
+            relatedPosts: [],
             note: `No strong internal-link matches found on ${site.name}. Consider whether this post supports any commercial page at all — if it does not, it may not be worth publishing.`,
           });
         }
 
         return textResult({
           site: siteEcho(site),
-          matches: matches.map((match) => ({
+          servicePages: matches.map((match) => ({
             url: match.target.url,
             name: match.target.name,
             matchedTerms: match.hits.slice(0, 8),
             strength: match.hits.length,
           })),
+          relatedPosts,
+          note:
+            relatedPosts.length > 0
+              ? "Link to a related post where the argument genuinely calls for it. Two posts pointing at each other is a topic cluster; a list of links at the bottom is not."
+              : `No published post on ${site.name} is close enough to link to yet. That is expected early on — clusters form as the archive grows.`,
         });
       } catch (err) {
         return errorResult(message(err));
@@ -307,15 +387,17 @@ function registerWriteTools(server: McpServer): void {
       try {
         const site = resolveSite(siteKey);
 
-        let png: Buffer | null = null;
+        let image: Buffer | null = null;
         let source = "composed-brand-cover";
         let alt = coverAltText(title, site.brand.wordmark);
         let fellBackBecause: string | null = null;
+        let sourceBytes: number | null = null;
 
         if (imageUrl) {
           try {
             const fetched = await fetchExternalImage(imageUrl);
-            png = fetched.png;
+            image = fetched.image;
+            sourceBytes = fetched.sourceBytes;
             source = `imported (${fetched.sourceType}, ${fetched.sourceBytes} bytes)`;
             // The brand-cover alt text describes a typographic cover, so it would
             // be actively wrong for imported artwork. Better to say so than to
@@ -330,11 +412,16 @@ function registerWriteTools(server: McpServer): void {
           }
         }
 
-        if (!png) {
-          png = await renderCoverPng({ title, slug, eyebrow, brand: site.brand });
+        if (!image) {
+          image = await renderCoverWebp({ title, slug, eyebrow, brand: site.brand });
         }
 
-        const { url } = await db.uploadCover(site, png, slug);
+        // WebP for both paths. Page weight is a ranking factor, and the cover is
+        // the heaviest thing on a post.
+        const { url } = await db.uploadCover(site, image, slug, {
+          ext: "webp",
+          contentType: "image/webp",
+        });
 
         return textResult({
           site: siteEcho(site),
@@ -350,7 +437,11 @@ function registerWriteTools(server: McpServer): void {
             : {}),
           width: COVER_WIDTH,
           height: COVER_HEIGHT,
-          bytes: png.length,
+          format: "webp",
+          bytes: image.length,
+          ...(sourceBytes
+            ? { savedVersusSource: `${Math.round((1 - image.length / sourceBytes) * 100)}% smaller than the source file` }
+            : {}),
         });
       } catch (err) {
         return errorResult(message(err));
@@ -412,6 +503,20 @@ function registerWriteTools(server: McpServer): void {
 
         const created = await db.createDraft(site, parsed.data);
 
+        // The same audit check_seo runs, reported after the save rather than
+        // before it. Blocking here would push people back to writing in the
+        // editor, where nothing checks at all; surfacing it means a weak draft is
+        // visible to whoever reviews it.
+        const report = auditDraft({
+          title: parsed.data.title,
+          content: parsed.data.content,
+          slug: parsed.data.slug,
+          excerpt: parsed.data.excerpt,
+          seoTitle: parsed.data.seoTitle ?? undefined,
+          seoDescription: parsed.data.seoDescription ?? undefined,
+          wordmark: site.brand.wordmark,
+        });
+
         return textResult({
           site: siteEcho(site),
           created: true,
@@ -420,7 +525,15 @@ function registerWriteTools(server: McpServer): void {
           slug: created.slug,
           publicUrlWhenPublished: `${site.origin}/blog/${created.slug}`,
           reviewAt: created.reviewUrl,
-          note: `Draft only, on ${site.name}. It is not public and will not be until a human publishes it in that site's admin.`,
+          seo: {
+            metrics: report.metrics,
+            findings: report.findings.filter((finding) => finding.severity !== "info"),
+          },
+          note: `Draft only, on ${site.name}. It is not public and will not be until a human publishes it in that site's admin.${
+            report.counts.warn
+              ? ` ${report.counts.warn} SEO warning${report.counts.warn === 1 ? "" : "s"} — worth fixing before it is published.`
+              : ""
+          }`,
         });
       } catch (err) {
         return errorResult(message(err));
