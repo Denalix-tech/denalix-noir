@@ -83,7 +83,7 @@ export default async function AdminDashboardLayout({
                 href="/blog"
                 className="text-sm font-medium text-muted transition-colors hover:text-white"
               >
-                View blog
+                View blogs
               </Link>
             </nav>
           </div>
