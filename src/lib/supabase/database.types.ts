@@ -194,6 +194,14 @@ export type Database = {
         Relationships: [];
       };
 
+      /** Previous slugs, so a renamed post redirects instead of 404ing. */
+      post_slug_history: {
+        Row: { old_slug: string; post_id: string; created_at: string };
+        Insert: { old_slug: string; post_id: string; created_at?: string };
+        Update: { post_id?: string };
+        Relationships: [];
+      };
+
       oauth_clients: {
         Row: {
           client_id: string;

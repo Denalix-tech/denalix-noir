@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { Navbar } from "@/components/sections/Navbar";
 import { Footer } from "@/components/sections/Footer";
 import { CTASection } from "@/components/sections/CTASection";
 import { PostArticle } from "@/components/blog/PostArticle";
-import { getPublishedPostBySlug } from "@/lib/blog/queries";
+import { getPublishedPostBySlug, resolveRenamedSlug } from "@/lib/blog/queries";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { blogPostingSchema } from "@/lib/schema";
+import { Breadcrumbs, type BreadcrumbItem } from "@/components/ui/Breadcrumbs";
+import { blogPostingSchema, breadcrumbSchema } from "@/lib/schema";
 import { pageOpenGraph, pageTwitter } from "@/lib/seo";
 
 export const revalidate = 300;
@@ -59,9 +60,26 @@ export default async function BlogPostPage({ params }: PageProps) {
   const { slug } = await params;
   const post = await getPublishedPostBySlug(slug);
 
-  // Missing, draft, and future-dated posts are indistinguishable from here —
-  // all three produce a real 404.
-  if (!post) notFound();
+  if (!post) {
+    // A miss might be a renamed post rather than a missing one. Checked only
+    // after the primary lookup fails, so the normal path pays nothing, and a 308
+    // rather than a 404 preserves the links and ranking the old URL earned.
+    const current = await resolveRenamedSlug(slug);
+    if (current && current !== slug) permanentRedirect(`/blog/${current}`);
+
+    // Missing, draft, and future-dated posts are indistinguishable from here —
+    // all three produce a real 404.
+    notFound();
+  }
+
+  // The visible trail and the JSON-LD are built from one array, because
+  // structured data that disagrees with what a visitor can see is a
+  // rich-results violation rather than a bonus.
+  const crumbs: BreadcrumbItem[] = [
+    { name: "Home", path: "/" },
+    { name: "Blogs", path: "/blog" },
+    { name: post.title, path: `/blog/${post.slug}` },
+  ];
 
   return (
     <>
@@ -79,12 +97,15 @@ export default async function BlogPostPage({ params }: PageProps) {
           authorName: post.authorDisplayName,
         })}
       />
+      <JsonLd data={breadcrumbSchema(crumbs)} />
 
       <main className="flex-1 pt-28 pb-8">
         <div className="container-px mx-auto max-w-3xl">
+          <Breadcrumbs items={crumbs} />
+
           <Link
             href="/blog"
-            className="inline-flex items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-white"
+            className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             All articles

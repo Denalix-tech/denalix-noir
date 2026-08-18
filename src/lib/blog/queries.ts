@@ -66,6 +66,64 @@ export async function listPublishedPosts(options: ListOptions = {}): Promise<Pos
   return (data ?? []) as PostListItem[];
 }
 
+/**
+ * How many posts are publicly visible right now.
+ *
+ * `head: true` asks Postgres for the count without transferring any rows, so
+ * paginating does not mean fetching the whole archive to learn its size.
+ */
+export async function countPublishedPosts(): Promise<number> {
+  if (!isSupabaseConfigured()) return 0;
+
+  const supabase = createPublicClient();
+
+  const { count, error } = await supabase
+    .from("posts")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "published")
+    .not("published_at", "is", null)
+    .lte("published_at", new Date().toISOString());
+
+  if (error) {
+    console.error("[blog] countPublishedPosts failed", { message: error.message });
+    return 0;
+  }
+
+  return count ?? 0;
+}
+
+/**
+ * The current slug for a post that used to live at `oldSlug`, or null.
+ *
+ * Only consulted after a lookup has already missed, so the happy path costs
+ * nothing. The target is re-checked for publication: a post that was renamed and
+ * then unpublished must 404 like any other draft rather than redirect to one.
+ */
+export async function resolveRenamedSlug(oldSlug: string): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null;
+
+  const supabase = createPublicClient();
+
+  const { data, error } = await supabase
+    .from("post_slug_history")
+    .select("post_id")
+    .eq("old_slug", oldSlug)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const { data: post } = await supabase
+    .from("posts")
+    .select("slug")
+    .eq("id", data.post_id)
+    .eq("status", "published")
+    .not("published_at", "is", null)
+    .lte("published_at", new Date().toISOString())
+    .maybeSingle();
+
+  return post?.slug ?? null;
+}
+
 /** A single publicly visible post, or null for missing/draft/future content. */
 export async function getPublishedPostBySlug(slug: string): Promise<PostWithAuthor | null> {
   if (!isSupabaseConfigured()) return null;
