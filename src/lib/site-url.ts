@@ -25,6 +25,7 @@ export function absoluteUrl(path: string = "/"): string {
 export const STATIC_ROUTES = [
   "/",
   "/services",
+  "/pricing",
   "/products",
   "/how-it-works",
   "/blog",

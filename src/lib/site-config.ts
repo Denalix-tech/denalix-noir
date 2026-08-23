@@ -18,6 +18,7 @@ export const audiences = [
 
 export const navLinks = [
   { label: "Services", href: "/services" },
+  { label: "Pricing", href: "/pricing" },
   { label: "Products", href: "/products" },
   { label: "How It Works", href: "/how-it-works" },
   { label: "Blogs", href: "/blog" },

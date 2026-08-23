@@ -37,6 +37,7 @@ const columns = [
     title: "Resources",
     links: [
       { label: "All Services", href: "/services" },
+      { label: "Pricing", href: "/pricing" },
       { label: "How It Works", href: "/how-it-works" },
       { label: "Blogs", href: "/blog" },
     ],
