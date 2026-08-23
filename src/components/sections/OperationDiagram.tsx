@@ -28,6 +28,23 @@ function stateFor(i: number, activeIndex: number): NodeState {
   return "pending";
 }
 
+/**
+ * Resting and active stroke styling for the animated connector lines.
+ *
+ * These have to appear in `initial` as well as `animate`. A value present only
+ * in `animate` has no starting keyframe, so Motion reads it from the element —
+ * and `strokeWidth` was set on neither the attribute nor the style here, so it
+ * resolved to `undefined`, which is not animatable. The browser console said so
+ * on every mount: "trying to animate strokeWidth from undefined to 2".
+ *
+ * Keeping the pairs as constants means the initial keyframe cannot drift away
+ * from the resting state the animation returns to.
+ */
+const TRUNK_REST = { stroke: "rgba(255,255,255,0.32)", strokeWidth: 2 } as const;
+const TRUNK_ACTIVE = { stroke: "#ffffff", strokeWidth: 3 } as const;
+const BRANCH_REST = { stroke: "rgba(255,255,255,0.3)", strokeWidth: 1.5 } as const;
+const BRANCH_ACTIVE = { stroke: "#ffffff", strokeWidth: 2 } as const;
+
 // One stage lights up at a time (active + glowing); every other stage — its path
 // and its icon — sits dimmed until the sequence reaches it, matching a single
 // moving point of focus that travels the length of the diagram and loops.
@@ -141,11 +158,10 @@ function VerticalDiagram() {
                     y1={segY1}
                     x2={V_TRUNK_X}
                     y2={s.y}
-                    initial={{ pathLength: 0 }}
+                    initial={{ pathLength: 0, ...TRUNK_REST }}
                     animate={{
                       pathLength: isActive || isDone ? 1 : 0,
-                      stroke: isActive ? "#ffffff" : "rgba(255,255,255,0.32)",
-                      strokeWidth: isActive ? 3 : 2,
+                      ...(isActive ? TRUNK_ACTIVE : TRUNK_REST),
                     }}
                     transition={{ duration: drawDuration, ease: "easeInOut" }}
                   />
@@ -180,11 +196,10 @@ function VerticalDiagram() {
                     x2={iconX}
                     y2={s.y}
                     strokeDasharray="3 4"
-                    initial={{ pathLength: 0 }}
+                    initial={{ pathLength: 0, ...BRANCH_REST }}
                     animate={{
                       pathLength: isActive || isDone ? 1 : 0,
-                      stroke: isActive ? "#ffffff" : "rgba(255,255,255,0.3)",
-                      strokeWidth: isActive ? 2 : 1.5,
+                      ...(isActive ? BRANCH_ACTIVE : BRANCH_REST),
                     }}
                     transition={{ duration: drawDuration, ease: "easeInOut" }}
                   />
@@ -364,11 +379,10 @@ function HorizontalDiagram() {
                     y1={H_TRUNK_Y}
                     x2={s.x}
                     y2={H_TRUNK_Y}
-                    initial={{ pathLength: 0 }}
+                    initial={{ pathLength: 0, ...TRUNK_REST }}
                     animate={{
                       pathLength: isActive || isDone ? 1 : 0,
-                      stroke: isActive ? "#ffffff" : "rgba(255,255,255,0.32)",
-                      strokeWidth: isActive ? 3 : 2,
+                      ...(isActive ? TRUNK_ACTIVE : TRUNK_REST),
                     }}
                     transition={{ duration: drawDuration, ease: "easeInOut" }}
                   />
@@ -403,11 +417,10 @@ function HorizontalDiagram() {
                     x2={s.x}
                     y2={iconY}
                     strokeDasharray="3 4"
-                    initial={{ pathLength: 0 }}
+                    initial={{ pathLength: 0, ...BRANCH_REST }}
                     animate={{
                       pathLength: isActive || isDone ? 1 : 0,
-                      stroke: isActive ? "#ffffff" : "rgba(255,255,255,0.3)",
-                      strokeWidth: isActive ? 2 : 1.5,
+                      ...(isActive ? BRANCH_ACTIVE : BRANCH_REST),
                     }}
                     transition={{ duration: drawDuration, ease: "easeInOut" }}
                   />
