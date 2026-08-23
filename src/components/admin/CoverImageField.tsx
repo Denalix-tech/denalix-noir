@@ -4,6 +4,9 @@ import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
 
 import { uploadCoverImageAction } from "@/lib/blog/upload-actions";
+import { MAX_IMAGE_BYTES } from "@/lib/blog/image-type";
+
+const MAX_MB = Math.floor(MAX_IMAGE_BYTES / 1024 / 1024);
 
 type Props = {
   url: string;
@@ -31,19 +34,36 @@ export function CoverImageField({ url, alt, onUrlChange, onAltChange, altError }
       return;
     }
 
+    // Checked here as well as in the action. Next rejects an oversized Server
+    // Action body before the action runs, so without this the user would get a
+    // thrown request rather than a sentence naming the size.
+    if (file.size > MAX_IMAGE_BYTES) {
+      const mb = (file.size / 1024 / 1024).toFixed(1);
+      setError(
+        `That image is ${mb} MB. Covers must be ${MAX_MB} MB or smaller — export it at a lower quality, or resize it to around 1200x630 first.`,
+      );
+      return;
+    }
+
     const payload = new FormData();
     payload.set("file", file);
 
     startTransition(async () => {
-      const result = await uploadCoverImageAction({}, payload);
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
-      if (result.url) {
-        setError(null);
-        onUrlChange(result.url);
-        if (inputRef.current) inputRef.current.value = "";
+      try {
+        const result = await uploadCoverImageAction({}, payload);
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        if (result.url) {
+          setError(null);
+          onUrlChange(result.url);
+          if (inputRef.current) inputRef.current.value = "";
+        }
+      } catch {
+        // A rejected action used to surface as an unhandled rejection, which
+        // left the field showing "Uploading…" and then nothing at all.
+        setError("The upload did not reach the server. Check your connection and try again.");
       }
     });
   }
@@ -73,7 +93,7 @@ export function CoverImageField({ url, alt, onUrlChange, onAltChange, altError }
           ref={inputRef}
           type="file"
           accept="image/jpeg,image/png,image/webp"
-          aria-label="Choose a cover image (JPEG, PNG, or WebP, up to 5 MB)"
+          aria-label={`Choose a cover image (JPEG, PNG, or WebP, up to ${MAX_MB} MB)`}
           className="max-w-full text-sm text-muted file:mr-3 file:rounded-sm file:border file:border-white/15 file:bg-white/5 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white"
         />
         <button
@@ -100,7 +120,9 @@ export function CoverImageField({ url, alt, onUrlChange, onAltChange, altError }
         ) : null}
       </div>
 
-      <p className="text-xs text-muted-soft">JPEG, PNG, or WebP. Maximum 5 MB.</p>
+      <p className="text-xs text-muted-soft">
+        JPEG, PNG, or WebP. Maximum {MAX_MB} MB. Resized to 1200x630 automatically.
+      </p>
 
       <p aria-live="polite" className="sr-only">
         {pending ? "Uploading image" : ""}

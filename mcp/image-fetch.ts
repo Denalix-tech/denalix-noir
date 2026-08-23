@@ -4,7 +4,7 @@ import { isIP } from "node:net";
 import sharp from "sharp";
 
 import { COVER_HEIGHT, COVER_WIDTH } from "./cover-image";
-import { MAX_IMAGE_BYTES, sniffImageType } from "../src/lib/blog/image-type";
+import { MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS, sniffImageType } from "../src/lib/blog/image-type";
 
 /**
  * Fetches a caller-supplied image URL and normalises it to cover dimensions.
@@ -156,7 +156,7 @@ export async function fetchExternalImage(rawUrl: string): Promise<FetchedImage> 
   // gradient illustration, which PNG stores appallingly — a 1200x630 illustration
   // came out at 1.4 MB, on a page every reader pays for. The same image as WebP is
   // an order of magnitude smaller with no visible difference at cover size.
-  const image = await sharp(bytes)
+  const image = await sharp(bytes, { limitInputPixels: MAX_IMAGE_PIXELS })
     .resize(COVER_WIDTH, COVER_HEIGHT, { fit: "cover", position: "centre" })
     .webp({ quality: 82, effort: 5 })
     .toBuffer();

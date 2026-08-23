@@ -342,8 +342,20 @@ content produces duplicates.
   Both public routes also revalidate every 300s, so a future-dated post goes
   live on its own.
 - **Upload safety** — cover uploads are type-sniffed from magic bytes, not from
-  the filename or the client's MIME claim, capped at 5 MB, and stored under a
-  per-user path with a UUID filename.
+  the filename or the client's MIME claim, capped at 5 MB and 64 MP, and stored
+  under a per-user path with a UUID filename.
+
+  > **Three size limits have to stay in order**, and getting them out of order
+  > breaks uploads with no usable error. From outermost in:
+  > `experimental.serverActions.bodySizeLimit` in `next.config.ts` (**6 MB**) >
+  > `MAX_IMAGE_BYTES` in `src/lib/blog/image-type.ts` (**5 MB**) > whatever
+  > sharp emits. Next enforces its cap *before* the Server Action body runs, so
+  > if it drops below `MAX_IMAGE_BYTES` the application check becomes
+  > unreachable and the upload fails without reaching any code that can explain
+  > why. That is exactly what happened while the limit sat at its 1 MB default:
+  > AI-generated covers are routinely 1–3 MB, so only hand-optimised images
+  > uploaded at all. `MAX_IMAGE_PIXELS` (64 MP) bounds decode separately,
+  > because a small highly-compressible PNG can still declare huge dimensions.
 
 ---
 
@@ -384,7 +396,7 @@ your market, or being accountable for a claim, is deliberately yours.
 | **Publishing** | ❌ **No, by design** | A human, in `/admin/posts`, every time |
 | Breadcrumb structured data on blog pages | ❌ Not implemented | See [§12](#12-known-gaps) |
 | Redirect after renaming a live slug | ❌ **No** | You, in `next.config.ts` |
-| Image resizing / compression on manual upload | ❌ No | You, before uploading |
+| Image resizing / compression on manual upload | ✅ Yes | Re-encoded to 1200×630 WebP q82 on upload |
 | Requesting indexing / submitting the sitemap | ❌ No | You, in Search Console |
 | Internal links *between* posts | ❌ Not possible yet | No tags or related-posts feature |
 
@@ -440,9 +452,11 @@ screenshot or add them in `/admin/people`.
 `noopener noreferrer`. If you ever want a followed outbound link, that's a code
 change in `MarkdownContent.tsx`, not a content decision.
 
-**Compress images before uploading.** Manual uploads are validated but never
-resized or re-encoded. A 4 MB cover passes the check and then costs every reader
-4 MB. Generated covers are already optimized.
+**You no longer need to compress images before uploading.** Manual uploads are
+re-encoded server-side to a 1200×630 WebP at quality 82, so a 4 MB import
+reaches readers at roughly 70 KB. Crop for composition if the subject sits near
+an edge — the resize is `fit: cover` from the centre — but do not bother
+optimising for weight.
 
 **Old cover images are never deleted.** Replacing a cover leaves the previous
 file in the bucket, because another post may reference it. Clean up under
@@ -553,7 +567,8 @@ Real limitations, not future ideas. Each is a candidate for a follow-up.
   `limit`/`offset`.
 - **No redirect on slug change.**
 - **No scheduling UI.** Future-dating a `published_at` is the workaround.
-- **Cover images are never auto-deleted**, and manual uploads are not resized.
+- **Cover images are never auto-deleted.** Replacing a cover leaves the old file
+  in the bucket.
 - **No automated tests.** `slug`, `reading-time`, and `schema` are pure and
   untested; the repo has no test runner configured.
 - **No self-service password reset.** Reset from the Supabase dashboard.

@@ -11,8 +11,30 @@
  * this — an SVG in an image slot is a script-execution vector.
  */
 
-/** Mirrored by the `blog-images` bucket configuration. */
+/**
+ * Largest image accepted as *input*. Both upload paths re-encode to a small
+ * WebP before anything is stored, so this bounds decode work rather than the
+ * stored object.
+ *
+ * Two other limits have to stay above this one, and both have bitten:
+ *
+ *   * `experimental.serverActions.bodySizeLimit` in `next.config.ts`. Next
+ *     enforces it before the action body runs, so a value below this one makes
+ *     the check here unreachable and uploads fail with no usable message.
+ *   * The `blog-images` bucket's `file_size_limit`, which applies to the
+ *     re-encoded WebP — comfortably clear at cover size.
+ */
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Decode ceiling for sharp, in pixels.
+ *
+ * A byte cap alone does not bound decode cost: a highly compressible PNG of a
+ * few hundred KB can declare enormous dimensions and expand to gigabytes in
+ * memory. sharp's own default is ~268 MP, far more than a 1200x630 cover could
+ * ever need. 64 MP still clears any real photograph or AI-generated image.
+ */
+export const MAX_IMAGE_PIXELS = 64_000_000;
 
 export type SniffedImage = {
   mime: "image/jpeg" | "image/png" | "image/webp";
