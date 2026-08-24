@@ -1,6 +1,18 @@
-import sharp from "sharp";
 
 import type { Brand } from "./brand";
+
+/**
+ * sharp is loaded on demand, not at import.
+ *
+ * It is a native module, and on a host missing its libvips shared object the
+ * import throws. As a top-level import inside the `mcp/` graph that throw
+ * happened while `/api/mcp` was still evaluating, so the route never registered
+ * and every tool went down — including the seven that never touch an image.
+ * Loading it where it is used keeps that blast radius to cover generation.
+ */
+async function loadSharp() {
+  return (await import("sharp")).default;
+}
 
 /**
  * Brand cover-image generator.
@@ -157,11 +169,13 @@ export function buildCoverSvg({ title, slug, eyebrow, brand }: CoverInput): stri
  */
 export async function renderCoverWebp(input: CoverInput): Promise<Buffer> {
   const svg = buildCoverSvg(input);
+  const sharp = await loadSharp();
   return sharp(Buffer.from(svg)).webp({ lossless: true, effort: 6 }).toBuffer();
 }
 
 export async function renderCoverPng(input: CoverInput): Promise<Buffer> {
   const svg = buildCoverSvg(input);
+  const sharp = await loadSharp();
   return sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer();
 }
 

@@ -1,6 +1,5 @@
 "use server";
 
-import sharp from "sharp";
 
 import { loadAdminContext } from "./authz";
 import {
@@ -65,6 +64,7 @@ export async function uploadCoverImageAction(
   // as received, not on whatever sharp decided to make of them.
   let optimized: Buffer;
   try {
+    const sharp = (await import("sharp")).default;
     optimized = await sharp(bytes, { limitInputPixels: MAX_IMAGE_PIXELS })
       .resize(COVER_WIDTH, COVER_HEIGHT, { fit: "cover", position: "centre" })
       .webp({ quality: 82, effort: 5 })

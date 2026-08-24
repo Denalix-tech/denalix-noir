@@ -2,6 +2,23 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.1.189", '172.20.61.225'],
+  // sharp is already on Next's auto-external list, so it is loaded with a native
+  // require rather than bundled — but the tracer then shipped `@img/sharp-linux-x64`
+  // without `@img/sharp-libvips-linux-x64`, and the binding died on the missing
+  // shared object:
+  //
+  //   ERR_DLOPEN_FAILED: libvips-cpp.so.8.18.3: cannot open shared object file
+  //
+  // That threw while the /api/mcp module graph evaluated, so the route was never
+  // registered and the platform served its own HTML 500 — with nothing in the
+  // function log until the import was moved inside the handler. Forcing the whole
+  // @img tree into the trace for the routes that touch sharp is the fix.
+  //
+  // Keys are route globs; values resolve from the project root.
+  outputFileTracingIncludes: {
+    "/api/mcp": ["./node_modules/@img/**/*"],
+    "/admin/**": ["./node_modules/@img/**/*"],
+  },
   experimental: {
     serverActions: {
       // Cover uploads go through a Server Action, and Next caps action request
