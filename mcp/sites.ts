@@ -87,7 +87,24 @@ assertDistinctKeys(sites);
  *
  * Computed once: the allowlist is deployment configuration, not per-call state.
  */
-const enabled: SiteConfig[] = (() => {
+/**
+ * Resolved on first use, not at module load.
+ *
+ * This was an IIFE evaluated at import time, so the throw below ran during
+ * module evaluation. Inside a Next route handler that fails in the worst
+ * possible way: the module never finishes loading, the route is therefore never
+ * registered, and the platform answers with its own static 500 page. The
+ * endpoint's own error handling cannot run, because none of its code exists
+ * yet. One typo in a deployment variable took the whole MCP endpoint down and
+ * reported it to every client as an unparseable HTML document.
+ *
+ * Deferring to the first call moves that failure inside a request, where the
+ * route's try/catch turns it into a JSON-RPC error that names the variable and
+ * the offending value.
+ */
+let enabled: SiteConfig[] | null = null;
+
+function resolveEnabled(): SiteConfig[] {
   const raw = env.SITES_ENABLED?.trim();
   if (!raw) return sites;
 
@@ -112,14 +129,17 @@ const enabled: SiteConfig[] = (() => {
   }
 
   return sites.filter((site) => wanted.includes(site.key.toLowerCase()));
-})();
+}
 
 export function loadSites(): SiteConfig[] {
+  // Deliberately not cached on the failure path: a throw leaves `enabled` null,
+  // so a corrected environment takes effect on the next call.
+  if (!enabled) enabled = resolveEnabled();
   return enabled;
 }
 
 export function siteKeys(): string[] {
-  return enabled.map((site) => site.key);
+  return loadSites().map((site) => site.key);
 }
 
 /**
@@ -140,7 +160,7 @@ export function resolveSite(key: string): SiteConfig {
     );
   }
 
-  const site = enabled.find((candidate) => candidate.key.toLowerCase() === wanted);
+  const site = loadSites().find((candidate) => candidate.key.toLowerCase() === wanted);
 
   if (!site) {
     throw new Error(

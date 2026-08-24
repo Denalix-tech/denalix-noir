@@ -27,9 +27,19 @@ import { isValidSlug, slugify } from "../src/lib/blog/slug";
  * Claude client drives this server, so no API tokens are consumed.
  */
 
-const siteParam = z
-  .string()
-  .describe(`Site key. One of: ${siteKeys().join(", ")}. Call list_sites for details.`);
+/**
+ * Built per registration rather than once at module scope.
+ *
+ * The description embeds the enabled site keys, and reading those can throw on a
+ * misconfigured `SITES_ENABLED`. At module scope that throw kills the import and
+ * the route never loads; called from inside `registerBlogTools` it surfaces as a
+ * normal request error instead. See the note in `sites.ts`.
+ */
+function siteParam() {
+  return z
+    .string()
+    .describe(`Site key. One of: ${siteKeys().join(", ")}. Call list_sites for details.`);
+}
 
 /**
  * OAuth scopes, duplicated as literals rather than imported from
@@ -120,7 +130,7 @@ function registerReadTools(server: McpServer): void {
       title: "Get the writing and SEO brief",
       description:
         "Read this BEFORE drafting any post. Returns the required structure, SEO rules, field limits, internal-link targets, and the list of claims that must never be invented. Clients that cannot read this repository have no other source for these rules.",
-      inputSchema: { site: siteParam },
+      inputSchema: { site: siteParam() },
     },
     async ({ site: siteKey }) => {
       try {
@@ -139,7 +149,7 @@ function registerReadTools(server: McpServer): void {
       description:
         "List existing blog posts on one site with their status and slug. Call this before drafting so you do not duplicate a topic or collide with an existing slug.",
       inputSchema: {
-        site: siteParam,
+        site: siteParam(),
         status: z
           .enum(["draft", "published", "all"])
           .optional()
@@ -164,7 +174,7 @@ function registerReadTools(server: McpServer): void {
       description:
         "Check whether a slug is validly formatted and not already taken on one site. Use before create_draft to avoid a failed insert. Slugs are unique per site, so the same slug can exist on two different sites.",
       inputSchema: {
-        site: siteParam,
+        site: siteParam(),
         slug: z.string().describe("The slug to check, e.g. 'automate-patient-intake'"),
       },
     },
@@ -196,7 +206,7 @@ function registerReadTools(server: McpServer): void {
       description:
         "Check a draft against the rules in get_writing_guide before saving it: title and description lengths, the brand accidentally typed into the title, whether the post answers in its opening rather than setting the scene, heading structure, internal link count, unsupported absolutes, and figures that look invented. Returns findings, not a verdict — fix what matters and use your judgement on the rest. Run this before create_draft.",
       inputSchema: {
-        site: siteParam,
+        site: siteParam(),
         title: z.string().describe("Post title"),
         content: z.string().describe("Post body as Markdown"),
         slug: z.string().optional().describe("Intended slug, if chosen"),
@@ -237,7 +247,7 @@ function registerReadTools(server: McpServer): void {
       title: "Get a site's internal-link targets",
       description:
         "Return the commercial pages a post on this site should link to, with the audience and problems each one covers. These are the pages the blog exists to support, and their problem statements are the best source of post topics.",
-      inputSchema: { site: siteParam },
+      inputSchema: { site: siteParam() },
     },
     async ({ site: siteKey }) => {
       try {
@@ -266,7 +276,7 @@ function registerReadTools(server: McpServer): void {
       description:
         "Given draft text, suggest which of a site's pages AND which already-published posts it should link to, with the phrases motivating each. Links to service pages pass value to the commercial pages; links to related posts build the topic clusters that make a group of articles rank better than the same articles in isolation. Suggestions only — you still write the links into the draft.",
       inputSchema: {
-        site: siteParam,
+        site: siteParam(),
         content: z.string().describe("The draft body text (Markdown is fine)"),
         excludeSlug: z
           .string()
@@ -362,7 +372,7 @@ function registerWriteTools(server: McpServer): void {
       description:
         "Produce a 1200x630 cover and upload it to the site's storage, returning a public URL and alt text for create_draft. Pass imageUrl to import your own artwork from a PUBLICLY reachable https URL; omit it to compose a typographic cover in the site's brand. If an imageUrl is supplied but cannot be used, the brand cover is produced instead and the response says why — so this tool always yields a usable cover. NOTE: images generated inside a ChatGPT conversation are not publicly readable and cannot be imported; see the `imageUrl` guidance.",
       inputSchema: {
-        site: siteParam,
+        site: siteParam(),
         title: z.string().describe("Post title, rendered as the cover headline"),
         slug: z.string().describe("Post slug; also seeds the layout variation"),
         eyebrow: z
@@ -456,7 +466,7 @@ function registerWriteTools(server: McpServer): void {
       description:
         "Create a new post on one site as a DRAFT for human review. Call get_writing_guide first — a draft written without it will not meet this site's SEO and factual-accuracy rules. This tool cannot publish; a person approves and publishes in that site's own admin. Validates against the same schema the admin editor uses, so anything accepted here will also save there.",
       inputSchema: {
-        site: siteParam,
+        site: siteParam(),
         title: z.string().describe("Post title, 1-160 characters"),
         slug: z
           .string()

@@ -1151,6 +1151,19 @@ server writes through Supabase PostgREST and touches none of them.
 
 ## 7. Security rules that must not be broken
 
+0. **Nothing in the `mcp/` import chain may throw at module scope.** A throw
+   during module evaluation means the route never registers, so the platform
+   answers with its own static 500 page and none of the endpoint's error
+   handling runs — the failure reaches clients as an unparseable HTML document
+   with no way to tell what broke. `SITES_ENABLED` validation caused exactly
+   this: one unregistered key took the whole endpoint down. Site resolution is
+   now lazy (`loadSites()` memoises on first call) and `siteParam()` is built
+   per registration. Keep it that way, and put new validation inside a function.
+
+   > **Symptom to recognise:** `x-matched-path: /500` on a `/api/mcp` response
+   > means the route never ran. Look at deployment configuration, not handler
+   > code. A JSON-RPC `-32603` body means the opposite — the route ran and threw.
+
 1. **The stdio server never gets deployed.** It holds every site's service-role
    key. Hosting is for a deliberately reduced instance with `SITES_ENABLED`.
 2. **A hosted instance carries only the sites it serves.** Omit client
