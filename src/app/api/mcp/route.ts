@@ -1,9 +1,8 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-
 import { challengeHeader, resolveBearer } from "@/lib/mcp-auth/bearer";
 import { isMcpOAuthEnabled } from "@/lib/mcp-auth/config";
-import { registerBlogTools } from "../../../../mcp/tools";
+
+// The SDK and the `mcp/` tool surface are imported inside the handler, not here.
+// See `loadToolSurface` below for why.
 
 /**
  * Remote MCP endpoint, protected by OAuth 2.1 — so ChatGPT, which cannot launch
@@ -60,7 +59,17 @@ function unauthorized(status: 401 | 403, code: string, description: string): Res
  * `digest` is Next's own correlation id where one is available — quoting it in a
  * bug report is what ties the response to a line in the platform logs.
  */
-function internalError(error: unknown, requestId: unknown = null): Response {
+function internalError(
+  error: unknown,
+  requestId: unknown = null,
+  /**
+   * Include the thrown message in the response body. Only set where the caller
+   * is already past the bearer check — these messages name modules and
+   * environment variables, which is exactly what an operator needs and exactly
+   * what an anonymous caller should not get.
+   */
+  exposeMessage = false,
+): Response {
   const digest =
     typeof error === "object" && error !== null && "digest" in error
       ? String((error as { digest?: unknown }).digest)
@@ -79,11 +88,53 @@ function internalError(error: unknown, requestId: unknown = null): Response {
       error: {
         code: -32603,
         message: "Internal error",
-        ...(digest ? { data: { digest } } : {}),
+        ...(digest || exposeMessage
+          ? {
+              data: {
+                ...(digest ? { digest } : {}),
+                ...(exposeMessage
+                  ? { reason: error instanceof Error ? error.message : String(error) }
+                  : {}),
+              },
+            }
+          : {}),
       },
     },
     { status: 500, headers: { "cache-control": "no-store" } },
   );
+}
+
+/**
+ * Loads the SDK transport and the `mcp/` tool surface on first use.
+ *
+ * These were static imports, which put the entire `mcp/` dependency graph on
+ * this module's load path. Anything that throws while that graph evaluates —
+ * a bad `SITES_ENABLED`, a native module that will not bind on the host, a
+ * missing asset — happens before the route is registered. The platform then
+ * answers with its own static 500 page and nothing in this file ever runs, so
+ * the failure reaches clients as an unparseable HTML document and reaches the
+ * operator as nothing at all. That is precisely how a one-line configuration
+ * mistake became an outage that could only be diagnosed from the outside.
+ *
+ * Importing here moves those failures inside a request, where they are caught
+ * and returned as a JSON-RPC error carrying the real message. Node caches the
+ * modules after the first successful load, so warm invocations pay nothing.
+ *
+ * Called only after the bearer check, so error detail never reaches an
+ * unauthenticated caller.
+ */
+async function loadToolSurface() {
+  const [mcp, transport, tools] = await Promise.all([
+    import("@modelcontextprotocol/sdk/server/mcp.js"),
+    import("@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"),
+    import("../../../../mcp/tools"),
+  ]);
+
+  return {
+    McpServer: mcp.McpServer,
+    WebStandardStreamableHTTPServerTransport: transport.WebStandardStreamableHTTPServerTransport,
+    registerBlogTools: tools.registerBlogTools,
+  };
 }
 
 async function handle(request: Request): Promise<Response> {
@@ -119,6 +170,16 @@ async function handle(request: Request): Promise<Response> {
       "This token carries no usable scope. Re-authorize with blog:read or blog:draft.",
     );
   }
+
+  let surface: Awaited<ReturnType<typeof loadToolSurface>>;
+  try {
+    surface = await loadToolSurface();
+  } catch (error) {
+    // Reported rather than swallowed: this is the failure that used to be
+    // invisible, and the message names the module that could not load.
+    return internalError(error, await requestIdOf(request.clone()), true);
+  }
+  const { McpServer, WebStandardStreamableHTTPServerTransport, registerBlogTools } = surface;
 
   const server = new McpServer({ name: "denalix-blog", version: "2.0.0" });
   registerBlogTools(server, { grantedScopes: auth.scopes });
