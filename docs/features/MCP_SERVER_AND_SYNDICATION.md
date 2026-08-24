@@ -30,6 +30,9 @@ code blocks are files to write, not files to read.
 | `src/app/api/mcp/route.ts` | New. Remote MCP endpoint over Streamable HTTP, OAuth-protected. Every handler is wrapped so a throw returns a JSON-RPC `-32603` rather than Next's HTML error page — see the note below |
 | `mcp/writing-guide.ts` | New. The drafting brief, served to the model |
 | `mcp/tools.ts` | Added `get_writing_guide`, later `check_seo` (nine tools); split into scope-gated registration groups |
+| `mcp/image-generate.ts` | New. OpenAI Image API call, prompt construction, one bounded attempt, injectable provider boundary |
+| `mcp/cover-source.ts` | New. The imported → generated → brand-cover order, with both fallible sources injectable |
+| `mcp/cover-source.test.ts` | New. 18 assertions over the ordering, fallbacks, prompt rules and the 1200×630 WebP contract — no paid requests |
 | `mcp/sites.ts` | `SITES_ENABLED` allowlist, enforced in `resolveSite` |
 | `mcp/lib.ts` | Guarded `import.meta.dirname` so the module survives bundling |
 | `src/app/robots.ts` | Disallow `/api/mcp` and `/oauth` |
@@ -198,6 +201,7 @@ To exercise a tool that actually touches Supabase, append:
 | `Unknown site "<key>". Valid sites: …` | Working as designed. Exact match only — no fuzzy matching, no default |
 | Tools absent in Claude Code | The server crashed at startup. Run §1.4 to see the real error; stdio swallows it otherwise |
 | Cover generation throws | `sharp` missing or built for the wrong platform. `npm rebuild sharp` |
+| Covers come back as `composed-brand-cover` | Generation was unavailable or failed. Read `reason` in the response — usually `OPENAI_API_KEY` unset, a provider timeout, or an error. The cover is still valid |
 | Slug rejected but looks fine | `check_slug` returns a `suggestion` — use it. Format is `^[a-z0-9]+(?:-[a-z0-9]+)*$` |
 
 ---
@@ -567,8 +571,17 @@ The server side is done. This is what remains.
    | `SITES_ENABLED` | `denalixtech`. **Required.** Unset means every registered site |
    | `NEXT_PUBLIC_SUPABASE_URL` | Already set for the app |
    | `SUPABASE_SERVICE_ROLE_KEY` | Already set for `/admin/people`; now also required by the OAuth store |
+   | `OPENAI_API_KEY` | **Enables generated cover artwork**, the default source for `generate_cover_image`. Omit it and the tool still works — it falls back to the typographic brand cover. **Costs money:** one paid image request per call, no retries. Server-only; never `NEXT_PUBLIC_` |
+   | `OPENAI_IMAGE_MODEL` | Optional. Defaults to `gpt-image-2` |
+   | `OPENAI_IMAGE_QUALITY` | Optional. `low`/`medium`/`high`, defaults to `medium` — the cost-conscious choice at 1200×630 |
 
    There is no shared secret to generate. That is the point of this change.
+
+   > **Adding `OPENAI_API_KEY` changes what a connector produces, not whether it
+   > works.** Without it, `generate_cover_image` returns
+   > `source: "composed-brand-cover"` with `fellBackToBrandCover: true` and a
+   > reason naming the missing variable — a usable cover either way. Nothing in
+   > the tool surface fails for a missing image key.
 
 3. **Confirm discovery works in production:**
 
@@ -898,8 +911,11 @@ for confirmation before write tools, since no `readOnlyHint` annotations are set
 - **No `.mcp.json` equivalent.** Connector config lives in your ChatGPT account,
   not the repo, so it isn't reviewable or reproducible.
 - **Cover images stay server-side.** ChatGPT cannot pass image bytes into a tool
-  call; base64 of a 1200×630 PNG is far too large an argument. This is already
-  the design — `generate_cover_image` takes text and renders the PNG itself.
+  call; base64 of a 1200×630 PNG is far too large an argument, and an image it
+  generated in the conversation sits behind a session-scoped URL this server
+  cannot fetch. That constraint no longer costs anything: `generate_cover_image`
+  takes text and produces its own original artwork through the OpenAI Image API,
+  so the model never needs to hand an image over.
 - **Publishing is still manual.** No publish tool exists on any transport, and
   adding one is an explicit non-goal.
 - **Prompt injection reaches further here.** A connector that can write to a

@@ -2,8 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import * as db from "./adapters/supabase";
-import { coverAltText, renderCoverWebp, COVER_WIDTH, COVER_HEIGHT } from "./cover-image";
-import { fetchExternalImage } from "./image-fetch";
+import { COVER_WIDTH, COVER_HEIGHT } from "./cover-image";
+import { resolveCover } from "./cover-source";
 import { auditDraft } from "./seo-audit";
 import { errorResult, textResult } from "./lib";
 import { loadSites, resolveSite, siteKeys, type SiteConfig } from "./sites";
@@ -368,9 +368,9 @@ function registerWriteTools(server: McpServer): void {
   server.registerTool(
     "generate_cover_image",
     {
-      title: "Generate or import a cover image",
+      title: "Generate a cover image",
       description:
-        "Produce a 1200x630 cover and upload it to the site's storage, returning a public URL and alt text for create_draft. Pass imageUrl to import your own artwork from a PUBLICLY reachable https URL; omit it to compose a typographic cover in the site's brand. If an imageUrl is supplied but cannot be used, the brand cover is produced instead and the response says why — so this tool always yields a usable cover. NOTE: images generated inside a ChatGPT conversation are not publicly readable and cannot be imported; see the `imageUrl` guidance.",
+        "Produce a 1200x630 cover and upload it to the site's storage, returning a public URL and alt text for create_draft. By DEFAULT it generates original artwork for this specific article with an image model — you do not need to pass anything beyond the title. Sources are tried in order: (1) imageUrl, if you supply one; (2) original generated artwork; (3) the site's typographic brand cover, only if generation is unavailable or fails. The response reports which source was used, so this tool always yields a usable cover. Use imagePrompt to steer the subject or composition. NOTE: images generated inside a ChatGPT conversation are not publicly readable and cannot be imported; see the `imageUrl` guidance.",
       inputSchema: {
         site: siteParam(),
         title: z.string().describe("Post title, rendered as the cover headline"),
@@ -383,52 +383,43 @@ function registerWriteTools(server: McpServer): void {
           .string()
           .optional()
           .describe(
-            "Optional https URL of a PNG/JPEG/WebP to use as the cover, cropped to 1200x630. Must be publicly reachable without authentication — an image you generated in this chat is NOT (its URL is session-scoped), so do not pass one. Use this only for artwork already hosted somewhere public. SVG is refused.",
+            "Optional https URL of a PNG/JPEG/WebP to use INSTEAD of generated artwork, cropped to 1200x630. Only for artwork already hosted somewhere public: it must be reachable without authentication, and an image you generated in this chat is NOT (its URL is session-scoped), so do not pass one. If the import fails, original artwork is generated instead and the response says why. SVG is refused.",
+          ),
+        imagePrompt: z
+          .string()
+          .optional()
+          .describe(
+            "Optional extra art direction for the generated artwork, e.g. 'a technician reviewing a scheduling board in a workshop'. Steers subject and composition only; the brand palette and the no-text, no-logo, no-invented-metrics rules always apply. Ignored when imageUrl imports successfully.",
           ),
         imageAlt: z
           .string()
           .optional()
           .describe(
-            "Alt text describing what an imported image SHOWS. Required in practice when imageUrl is used: the generated brand-cover alt text would describe a cover that is not what was uploaded.",
+            "Optional alt text describing what the image SHOWS. Pass it when you supply imageUrl, since only you know what that artwork depicts. For generated artwork it is optional — deterministic alt text is derived from the title.",
           ),
       },
     },
-    async ({ site: siteKey, title, slug, eyebrow, imageUrl, imageAlt }) => {
+    async ({ site: siteKey, title, slug, eyebrow, imageUrl, imageAlt, imagePrompt }) => {
       try {
         const site = resolveSite(siteKey);
 
-        let image: Buffer | null = null;
-        let source = "composed-brand-cover";
-        let alt = coverAltText(title, site.brand.wordmark);
-        let fellBackBecause: string | null = null;
-        let sourceBytes: number | null = null;
+        // Source order and every fallback decision live in `cover-source.ts`.
+        // This resolves to a usable cover whenever the brand renderer works, so
+        // the only failure below is storage.
+        const cover = await resolveCover({
+          title,
+          slug,
+          eyebrow,
+          siteName: site.name,
+          brand: site.brand,
+          imageUrl,
+          imageAlt,
+          imagePrompt,
+        });
 
-        if (imageUrl) {
-          try {
-            const fetched = await fetchExternalImage(imageUrl);
-            image = fetched.image;
-            sourceBytes = fetched.sourceBytes;
-            source = `imported (${fetched.sourceType}, ${fetched.sourceBytes} bytes)`;
-            // The brand-cover alt text describes a typographic cover, so it would
-            // be actively wrong for imported artwork. Better to say so than to
-            // attach a confidently incorrect description.
-            alt =
-              imageAlt?.trim() ||
-              "Cover image for this article. Replace this alt text with a description of what the image shows.";
-          } catch (err) {
-            // Never fail the call for a bad URL: the brand cover is always
-            // available, and a post with a cover beats an error.
-            fellBackBecause = message(err);
-          }
-        }
-
-        if (!image) {
-          image = await renderCoverWebp({ title, slug, eyebrow, brand: site.brand });
-        }
-
-        // WebP for both paths. Page weight is a ranking factor, and the cover is
+        // WebP on every path. Page weight is a ranking factor, and the cover is
         // the heaviest thing on a post.
-        const { url } = await db.uploadCover(site, image, slug, {
+        const { url } = await db.uploadCover(site, cover.image, slug, {
           ext: "webp",
           contentType: "image/webp",
         });
@@ -436,21 +427,26 @@ function registerWriteTools(server: McpServer): void {
         return textResult({
           site: siteEcho(site),
           url,
-          alt,
-          source,
-          ...(fellBackBecause
+          alt: cover.alt,
+          source: cover.source,
+          fellBackToBrandCover: cover.fellBackToBrandCover,
+          ...(cover.model ? { model: cover.model } : {}),
+          ...(cover.attemptedSource ? { attemptedSource: cover.attemptedSource } : {}),
+          ...(cover.reason ? { reason: cover.reason } : {}),
+          ...(cover.warning ? { warning: cover.warning } : {}),
+          ...(cover.fellBackToBrandCover
             ? {
-                fellBackToBrandCover: true,
-                reason: fellBackBecause,
-                note: "The imported image was not usable, so the brand cover was produced instead. The returned url is valid and ready for create_draft.",
+                note: "Original artwork could not be produced, so the site's typographic brand cover was used instead. The returned url is valid and ready for create_draft.",
               }
             : {}),
           width: COVER_WIDTH,
           height: COVER_HEIGHT,
           format: "webp",
-          bytes: image.length,
-          ...(sourceBytes
-            ? { savedVersusSource: `${Math.round((1 - image.length / sourceBytes) * 100)}% smaller than the source file` }
+          bytes: cover.image.length,
+          ...(cover.sourceBytes
+            ? {
+                savedVersusSource: `${Math.round((1 - cover.image.length / cover.sourceBytes) * 100)}% smaller than the source file`,
+              }
             : {}),
         });
       } catch (err) {

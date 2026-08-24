@@ -219,7 +219,7 @@ there is no default target.
 | `check_slug` | Format validity + availability on that site, with a suggested fix |
 | `get_link_targets` | A site's commercial pages, their audiences and problems |
 | `suggest_internal_links` | Which of those pages a draft should link to, and why |
-| `generate_cover_image` | Renders a 1200×630 cover in that site's brand, uploads it, returns URL + alt |
+| `generate_cover_image` | Generates original 1200×630 artwork for the article, uploads it, returns URL + alt. Falls back to the brand cover |
 | `create_draft` | Creates a **draft** — validated by the same schema the editor uses |
 
 Sites live in [`mcp/sites.config.ts`](mcp/sites.config.ts) (committed, no
@@ -242,13 +242,23 @@ is a convenience over clicking each row, not a looser path.
 
 ### About the cover images
 
-Claude has no image model, so these are **not** photographs or diffusion output. They
-are real PNGs composed from the site's own design system — noir background, gold
-accent, the brand mark, your title — rendered as SVG and rasterised with `sharp`. That
-makes them free, instant, consistent, and dependent on no third-party key.
+`generate_cover_image` produces **original artwork for the specific article**, via the
+OpenAI Image API, cropped to 1200×630 and encoded as WebP. Sources are tried in order:
 
-If you later want photographic art, that needs a paid image API (and a new key); the
-`generate_cover_image` tool is the seam where it would slot in.
+1. `imageUrl`, if the caller supplies one — artwork already hosted at a public https URL.
+2. **Generated artwork** — the default. No argument needed beyond the title.
+3. The typographic brand cover — noir background, gold accent, brand mark, your title,
+   composed as SVG and rasterised with `sharp`. Free, instant, and dependent on no key.
+
+The third is a **fallback**, not the normal result. It appears when `OPENAI_API_KEY` is
+unset, or the provider times out, errors, or returns bytes that will not decode. The
+tool reports which source it used in `source`, and never fails the draft workflow over
+a cover — only a storage failure can do that.
+
+**Generation costs money.** One paid request per call, with no retries. Set
+`OPENAI_API_KEY` to enable it and `OPENAI_IMAGE_MODEL` / `OPENAI_IMAGE_QUALITY` to tune
+it; defaults are `gpt-image-2` at `medium`. Leave the key unset and you get the brand
+cover, exactly as before.
 
 ### Security
 
@@ -307,9 +317,11 @@ npx tsc --noEmit # type check
 - **Images are never auto-deleted.** Changing a post's cover image leaves the
   old file in the bucket, because another post may reference it. Clean up
   unused files manually under **Storage**.
-- **No automated tests.** The repository has no test runner configured, so the
-  pure utilities (`slug`, `reading-time`, `schema`) ship untested. Adding
-  Vitest would cover them cheaply.
+- **Tests cover cover-image selection only.** `npm run test:cover` runs the
+  Node built-in runner over `mcp/*.test.ts` — source ordering, every fallback
+  branch, prompt constraints, and the 1200×630 WebP contract, with the paid
+  image provider injected so nothing is billed. The pure utilities (`slug`,
+  `reading-time`, `schema`) are still untested.
 - **Pagination is not implemented.** `/blog` lists up to 50 posts. The query in
   `src/lib/blog/queries.ts` already accepts `limit`/`offset`.
 - **The People screen lists up to 200 accounts** in a single page, which

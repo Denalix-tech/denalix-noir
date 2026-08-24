@@ -179,6 +179,33 @@ export async function renderCoverPng(input: CoverInput): Promise<Buffer> {
   return sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer();
 }
 
+/**
+ * Crops arbitrary image bytes to the exact cover box and encodes WebP.
+ *
+ * Shared by both non-typographic sources — an imported URL and generated
+ * artwork — so the two cannot drift on dimensions, fit, or format. `fit: cover`
+ * fills the box and trims the overflow, so the result is always exactly
+ * 1200x630 whatever aspect ratio arrived.
+ *
+ * Quality 82 rather than the lossless setting used for the typographic cover:
+ * photographic and painted artwork compresses badly losslessly, and a 1.4 MB
+ * cover is paid for by every reader.
+ *
+ * Rasterising through sharp also discards whatever metadata or trailing payload
+ * the source carried, which matters because one of these sources is a URL
+ * chosen by a language model.
+ */
+export async function normaliseToCoverWebp(
+  bytes: Buffer,
+  limitInputPixels: number,
+): Promise<Buffer> {
+  const sharp = await loadSharp();
+  return sharp(bytes, { limitInputPixels })
+    .resize(COVER_WIDTH, COVER_HEIGHT, { fit: "cover", position: "centre" })
+    .webp({ quality: 82, effort: 5 })
+    .toBuffer();
+}
+
 /** Alt text describing what the cover actually shows — not the article topic. */
 export function coverAltText(title: string, wordmark: string): string {
   return `${wordmark} article cover with the title "${title}" on a dark background`;

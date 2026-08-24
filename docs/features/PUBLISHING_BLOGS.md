@@ -110,7 +110,7 @@ Nine tools back that:
 | `check_seo` | Audits a draft against §5 and §8 before saving — lengths, brand-in-title, answer-first opening, headings, link count, absolutes, and figures that need verifying |
 | `get_link_targets` | That site's commercial pages, their audiences, problems and deliverables |
 | `suggest_internal_links` | Which service pages **and published posts** a draft should link to, and the phrase motivating each. Post-to-post links are what build topic clusters |
-| `generate_cover_image` | Renders or imports a 1200×630 cover **in that site's brand**, encodes it as WebP, uploads it, returns URL + alt text |
+| `generate_cover_image` | Generates **original 1200×630 artwork for the article**, encodes it as WebP, uploads it, returns URL + alt text. Imports `imageUrl` instead when given one; falls back to the brand cover |
 | `create_draft` | Creates a **draft**, validated by the same schema the editor uses |
 
 > `mcp/writing-guide.ts` mirrors [§5](#5-the-seo-writing-playbook) and
@@ -132,13 +132,15 @@ each row, not a shortcut around review.
 
 Two things to know:
 
-- **Cover images are composed, not generated.** Built from the site's own design
-  system — noir background, gold rule, brand mark, your title — rendered as SVG
-  and rasterised with `sharp`. Free, instant, on-brand, no third-party key. Not
-  photography. Pass `imageUrl` to import artwork already hosted at a public https
-  URL; anything that fails falls back to the brand cover rather than erroring. If
-  you ever want *generated* photographic art, that needs a paid image API, and
-  `generate_cover_image` is the seam it slots into.
+- **Cover images are generated for the article by default.** `generate_cover_image`
+  tries three sources in order: an `imageUrl` you supply, then **original artwork
+  from the OpenAI Image API**, then the typographic brand cover — noir background,
+  gold rule, brand mark, your title, composed as SVG and rasterised with `sharp`.
+  The brand cover is a **fallback**, reached when `OPENAI_API_KEY` is unset or the
+  provider fails; it is no longer what you get by passing nothing. Every path is
+  cropped to 1200×630, and nothing here errors the draft — the response reports
+  which source it used in `source`. **Generation costs money:** one paid request
+  per call, no retries. See [§ Cover image sources](#cover-image-sources).
 - **Covers are encoded as WebP.** A 1.4 MB imported illustration lands at ~70 KB,
   and the composed cover drops from 66 KB to 44 KB. Page weight is a ranking
   factor and the cover is the heaviest thing on a post.
@@ -266,12 +268,29 @@ If you leave SEO description blank, the excerpt is used — which is often over
 
 ### Step 8 — Cover image and alt text
 
-Ask `generate_cover_image` for a brand cover, or upload your own at 1200×630.
+Call `generate_cover_image` **before** `create_draft` and pass the returned `url`
+and `alt` straight through. You do not need to ask for artwork: original
+generated illustration is the default, so the title alone is enough.
 
-The generated alt text describes the cover itself — *"Denalix Tech article cover
-with the title … on a dark background"* — which is correct for a typographic
-cover. If you upload a **photograph or screenshot**, replace it: describe what
-the image shows, because that is what image search and screen readers use.
+Add `imagePrompt` when the title is abstract and you want to steer the subject —
+*"a dispatcher reviewing a wall-mounted job board"*. It directs subject and
+composition only; the brand palette and the no-text, no-logo, no-invented-metrics
+rules are enforced regardless.
+
+Alt text follows the source, and the tool gets this right on its own:
+
+| Source | Alt text |
+| --- | --- |
+| Generated artwork | *"Editorial illustration representing “…”."* — derived from the title |
+| Imported `imageUrl` | Yours. Pass `imageAlt`; only you know what the artwork shows |
+| Brand cover fallback | *"Denalix Tech article cover with the title … on a dark background"* |
+
+The fallback deliberately ignores an `imageAlt` you passed for artwork that was
+never produced — describing an image the reader is not looking at is worse than
+plain text, and screen-reader users are exactly who that hurts.
+
+**Check `source` in the response** before you describe the cover in your reply. A
+`composed-brand-cover` is not generated artwork.
 
 ### Step 9 — Post skeleton
 
@@ -380,7 +399,7 @@ your market, or being accountable for a claim, is deliberately yours.
 | Slug generation from the title | ✅ Yes | Editor, for new posts only |
 | Slug format + uniqueness check | ✅ Yes | `check_slug`, the Zod schema, and a DB unique index |
 | Field length validation | ✅ Yes | Browser + Server Action + Postgres CHECK |
-| Cover image creation | ✅ Yes | `generate_cover_image` (1200×630, on-brand) |
+| Cover image creation | ✅ Yes | `generate_cover_image` — original generated artwork by default (1200×630), brand cover as fallback |
 | Cover alt text | ⚙️ Assisted | Auto for generated covers; write your own for photos/screenshots |
 | Choosing internal links | ⚙️ Suggested | `suggest_internal_links` names targets; **you insert them** |
 | `\| Denalix Tech` title suffix | ✅ Yes | Root layout |

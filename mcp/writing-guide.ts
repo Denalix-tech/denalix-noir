@@ -116,23 +116,43 @@ long for a search result. Write it without the brand.
 
 ## 8. Cover image
 
-Call \`generate_cover_image\` and pass the returned \`url\` and \`alt\` to
-\`create_draft\`. It always returns a usable cover.
+Call \`generate_cover_image\` **before** \`create_draft\`, then pass the returned
+\`url\` and \`alt\` straight through to \`create_draft\`. It always returns a usable
+cover.
+
+**Original generated artwork is the default.** Pass nothing but the title, slug,
+and eyebrow and the tool produces an illustration for that specific article with
+an image model, in the site's palette. You do not need to ask for this, and you
+should not pass \`imageUrl\` just to get a picture.
+
+Sources are tried in this order:
+
+1. \`imageUrl\`, if you supply one.
+2. Original generated artwork.
+3. The typographic brand cover — **only** if generation is unavailable or fails.
+
+The response tells you which one you got in \`source\`, so say so accurately if you
+summarise your work. Do not describe a \`composed-brand-cover\` as generated artwork.
+
+\`imagePrompt\` is optional extra art direction — *"a dispatcher reviewing a
+wall-mounted job board"*. It steers subject and composition only; the brand
+palette and the no-text, no-logo, no-invented-metrics rules always apply. Reach
+for it when the title alone is abstract.
+
+\`imageUrl\` **overrides generation** and is for artwork already hosted at a public
+https URL — an asset on the site, a stock image the human has licensed and linked.
+PNG, JPEG, or WebP; SVG is refused. It is cropped to 1200×630. Pass \`imageAlt\`
+with it, because only you know what that artwork shows.
 
 **Do not pass an image you generated in this conversation.** Its URL is
-session-scoped and not publicly readable, so this server cannot fetch it — the
-call will simply fall back to the brand cover. That is a platform limitation, not
-a setting to change. If you have generated a good image, say so in your reply and
-tell the human they can upload it themselves on the post's edit screen.
+session-scoped and not publicly readable, so this server cannot fetch it. That is
+a platform limitation, not a setting to change — and it no longer costs you
+anything, because the tool generates its own artwork server-side. Just omit
+\`imageUrl\`.
 
-\`imageUrl\` is for artwork **already hosted at a public https URL** — an asset on
-the site, a stock image the human has licensed and linked. PNG, JPEG, or WebP;
-SVG is refused. It is cropped to 1200×630. When you use it, also pass \`imageAlt\`
-describing what the image *shows*: the default brand-cover alt text would describe
-a cover that is not what was uploaded.
-
-Omit \`imageUrl\` and you get a typographic cover in the site's brand, whose
-generated alt text is already correct.
+Alt text: for generated artwork the tool derives it from the title, so you can
+omit \`imageAlt\` entirely. Supply it when you want a more specific description, or
+whenever you use \`imageUrl\`.
 
 ## 9. Claims you must never invent
 

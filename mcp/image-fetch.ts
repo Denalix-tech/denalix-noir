@@ -2,21 +2,8 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
 
-import { COVER_HEIGHT, COVER_WIDTH } from "./cover-image";
+import { normaliseToCoverWebp } from "./cover-image";
 import { MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS, sniffImageType } from "../src/lib/blog/image-type";
-
-/**
- * sharp is loaded on demand, not at import.
- *
- * It is a native module, and on a host missing its libvips shared object the
- * import throws. As a top-level import inside the `mcp/` graph that throw
- * happened while `/api/mcp` was still evaluating, so the route never registered
- * and every tool went down — including the seven that never touch an image.
- * Loading it where it is used keeps that blast radius to cover generation.
- */
-async function loadSharp() {
-  return (await import("sharp")).default;
-}
 
 /**
  * Fetches a caller-supplied image URL and normalises it to cover dimensions.
@@ -168,11 +155,7 @@ export async function fetchExternalImage(rawUrl: string): Promise<FetchedImage> 
   // gradient illustration, which PNG stores appallingly — a 1200x630 illustration
   // came out at 1.4 MB, on a page every reader pays for. The same image as WebP is
   // an order of magnitude smaller with no visible difference at cover size.
-  const sharp = await loadSharp();
-  const image = await sharp(bytes, { limitInputPixels: MAX_IMAGE_PIXELS })
-    .resize(COVER_WIDTH, COVER_HEIGHT, { fit: "cover", position: "centre" })
-    .webp({ quality: 82, effort: 5 })
-    .toBuffer();
+  const image = await normaliseToCoverWebp(bytes, MAX_IMAGE_PIXELS);
 
   return { image, sourceBytes: total, sourceType: sniffed.mime };
 }
