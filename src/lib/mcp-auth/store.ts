@@ -317,13 +317,62 @@ export type RefreshOutcome =
   | { ok: false; error: "invalid_grant"; description: string };
 
 /**
+ * How long after a refresh token is rotated out that a second presentation of
+ * the same token is still read as benign concurrency rather than replay.
+ *
+ * Strict one-time-use breaks any setup where more than one process shares a
+ * credential store — two editor windows, or an agent runner that keeps its own
+ * copy. Both read the same stored token, one redeems it, and the other's copy
+ * is already burned. Under the old behaviour that second request tore down the
+ * whole grant, so the user was pushed back through consent, the two processes
+ * raced again on the new token, and the loop sustained itself.
+ *
+ * Sixty seconds is the usual mitigation: long enough to cover a racing client
+ * and a retry behind it, short enough that a stolen token is not broadly
+ * replayable. True replay outside the window still revokes the family.
+ */
+const REFRESH_REUSE_GRACE_MS = 60_000;
+
+/**
+ * Whether re-presenting an already-rotated refresh token looks like two client
+ * processes racing rather than an attacker replaying a stolen token.
+ *
+ * Two conditions, and both matter. The rotation must be recent, and the token
+ * must have a live successor — that is what distinguishes a token this server
+ * rotated from one killed by `/oauth/revoke` or by a family revocation. Those
+ * have no successor, so re-presenting one is exactly the replay that the family
+ * revocation exists to catch, and it still gets caught.
+ */
+async function isConcurrentReuse(
+  client: ReturnType<typeof db>,
+  revokedAt: string,
+  tokenHash: string,
+): Promise<boolean> {
+  if (Date.now() - new Date(revokedAt).getTime() > REFRESH_REUSE_GRACE_MS) return false;
+
+  // Not maybeSingle: a second grace-window refresh adds another row with the
+  // same parent, so more than one successor is expected and must not throw.
+  const { data: successors, error } = await client
+    .from("oauth_tokens")
+    .select("revoked_at")
+    .eq("parent_hash", tokenHash)
+    .eq("kind", "refresh")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error) throw new Error(`Could not read refresh lineage: ${error.message}`);
+
+  const successor = successors?.[0];
+  return Boolean(successor) && !successor.revoked_at;
+}
+
+/**
  * Rotates a refresh token.
  *
- * The presented token is revoked and a new pair issued. If an already-revoked
- * refresh token is presented, that is treated as a possible replay and the whole
- * lineage plus every live token for that client/user is revoked — the standard
- * response, because either the token leaked or the client is broken, and both
- * warrant re-authorization.
+ * The presented token is revoked and a new pair issued. Re-presenting a token
+ * that was already rotated is replay, and revokes the whole lineage plus every
+ * live token for that client and user — unless it lands inside the grace window
+ * above, which is the concurrent-client case rather than an attack.
  */
 export async function rotateRefreshToken(
   refreshToken: string,
@@ -351,13 +400,8 @@ export async function rotateRefreshToken(
   if (!row) return reject("Refresh token is invalid.");
   if (row.client_id !== clientId) return reject("Refresh token is invalid.");
 
-  if (row.revoked_at) {
-    // Replay of a rotated token. Revoke everything this client holds for this
-    // user and force a fresh authorization.
-    await revokeAllForClientAndUser(row.client_id, row.user_id);
-    return reject("Refresh token has already been used. Re-authorization required.");
-  }
-
+  // Checked before the reuse branch: an expired token is expired whether or not
+  // it was also rotated, and the grace window must not resurrect one.
   if (new Date(row.expires_at).getTime() < Date.now()) {
     return reject("Refresh token has expired.");
   }
@@ -370,6 +414,27 @@ export async function rotateRefreshToken(
 
   if (scopes.length === 0) return reject("Requested scopes exceed the original grant.");
 
+  // Tokens are stored only as hashes, so the pair the winning request received
+  // cannot be handed out again. A fresh pair on the same lineage is issued
+  // instead: both callers end up with working, independently revocable
+  // credentials, which is what the racing client needed.
+  const issue = async (): Promise<RefreshOutcome> => ({
+    ok: true,
+    tokens: await issueTokens({
+      clientId: row.client_id,
+      userId: row.user_id,
+      scopes,
+      resource: row.resource,
+      parentHash: tokenHash,
+    }),
+  });
+
+  if (row.revoked_at) {
+    if (await isConcurrentReuse(client, row.revoked_at, tokenHash)) return issue();
+    await revokeAllForClientAndUser(row.client_id, row.user_id);
+    return reject("Refresh token has already been used. Re-authorization required.");
+  }
+
   const { data: revoked, error: revokeError } = await client
     .from("oauth_tokens")
     .update({ revoked_at: new Date().toISOString() })
@@ -379,18 +444,26 @@ export async function rotateRefreshToken(
     .maybeSingle();
 
   if (revokeError) throw new Error(`Could not rotate refresh token: ${revokeError.message}`);
-  // Concurrent refresh; the other request won.
-  if (!revoked) return reject("Refresh token has already been used.");
 
-  const tokens = await issueTokens({
-    clientId: row.client_id,
-    userId: row.user_id,
-    scopes,
-    resource: row.resource,
-    parentHash: tokenHash,
-  });
+  if (!revoked) {
+    // Rotated between the read above and this update — the same race, just lost
+    // a few milliseconds later, so it gets the same answer rather than a
+    // rejection that depends on timing.
+    const { data: current, error: reread } = await client
+      .from("oauth_tokens")
+      .select("revoked_at")
+      .eq("token_hash", tokenHash)
+      .maybeSingle();
 
-  return { ok: true, tokens };
+    if (reread) throw new Error(`Could not re-read refresh token: ${reread.message}`);
+
+    if (current?.revoked_at && (await isConcurrentReuse(client, current.revoked_at, tokenHash))) {
+      return issue();
+    }
+    return reject("Refresh token has already been used.");
+  }
+
+  return issue();
 }
 
 /** RFC 7009. Silent by design: revoking an unknown token is a success. */

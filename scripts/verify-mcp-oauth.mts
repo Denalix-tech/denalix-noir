@@ -262,7 +262,7 @@ async function main(): Promise<void> {
     console.log("\nMCP call with the access token");
     const full = await listTools(accessToken);
     check("tools/list returns 200", full.status === 200);
-    check("all eight tools present", full.tools.length === 8, full.tools);
+    check("all nine tools present", full.tools.length === 9, full.tools);
     check("create_draft present under blog:draft", full.tools.includes("create_draft"));
 
     // ---- single use ----------------------------------------------------
@@ -320,6 +320,63 @@ async function main(): Promise<void> {
       familyRevoked.status,
     );
 
+    // ---- concurrent refresh (the grace window) --------------------------
+    //
+    // Its own grant, deliberately. The chain above rotates twice before
+    // replaying, so by then the successor is itself spent and the replay is
+    // real — which is why those assertions still expect a rejection. This one
+    // presents the same token twice with nothing in between, which is what two
+    // client processes sharing a token store actually do.
+    console.log("\nConcurrent refresh within the grace window");
+    const raceClient = await registerClient("blog:read blog:draft", "verify: race");
+    createdClients.push(raceClient);
+    const racePkce = pkce();
+    const raceCode = await approveAsHuman(raceClient, owner.id, racePkce.challenge, [
+      "blog:read",
+      "blog:draft",
+    ]);
+    const raceExchange = await postForm("/oauth/token", {
+      grant_type: "authorization_code",
+      client_id: raceClient,
+      code: raceCode,
+      code_verifier: racePkce.verifier,
+      redirect_uri: REDIRECT_URI,
+    });
+    const raceRefresh = raceExchange.body?.refresh_token as string;
+
+    const firstUse = await postForm("/oauth/token", {
+      grant_type: "refresh_token",
+      client_id: raceClient,
+      refresh_token: raceRefresh,
+    });
+    check("first refresh succeeds", firstUse.status === 200, firstUse.body);
+
+    const secondUse = await postForm("/oauth/token", {
+      grant_type: "refresh_token",
+      client_id: raceClient,
+      refresh_token: raceRefresh,
+    });
+    check(
+      "the same refresh token presented again is honoured, not rejected",
+      secondUse.status === 200,
+      secondUse.body,
+    );
+    check(
+      "the racing client gets its own distinct pair",
+      Boolean(secondUse.body?.refresh_token) &&
+        secondUse.body?.refresh_token !== firstUse.body?.refresh_token,
+    );
+
+    const winnerStillLive = await listTools(firstUse.body?.access_token as string);
+    check(
+      "the first client's token is NOT collateral damage",
+      winnerStillLive.status === 200,
+      winnerStillLive.status,
+    );
+
+    const loserWorks = await listTools(secondUse.body?.access_token as string);
+    check("the second client's token works too", loserWorks.status === 200, loserWorks.status);
+
     // ---- scope gating over the wire -----------------------------------
     console.log("\nScope gating (blog:read only)");
     const readClient = await registerClient("blog:read", "verify: read-only");
@@ -338,7 +395,10 @@ async function main(): Promise<void> {
     check("read-only exchange succeeds", readExchange.status === 200, readExchange.body);
 
     const readTools = await listTools(readExchange.body?.access_token as string);
-    check("read-only token sees six tools", readTools.tools.length === 6, readTools.tools);
+    // Seven, not six: check_seo joined the read group. The count is asserted
+    // rather than just the absences, so a write tool leaking into blog:read
+    // fails here even if nobody thinks to name it.
+    check("read-only token sees seven tools", readTools.tools.length === 7, readTools.tools);
     check("create_draft ABSENT", !readTools.tools.includes("create_draft"));
     check("generate_cover_image ABSENT", !readTools.tools.includes("generate_cover_image"));
     check("list_posts present", readTools.tools.includes("list_posts"));

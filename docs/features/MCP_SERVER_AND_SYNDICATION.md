@@ -27,9 +27,9 @@ code blocks are files to write, not files to read.
 
 | File | Change |
 | --- | --- |
-| `src/app/api/mcp/route.ts` | New. Remote MCP endpoint over Streamable HTTP, OAuth-protected |
+| `src/app/api/mcp/route.ts` | New. Remote MCP endpoint over Streamable HTTP, OAuth-protected. Every handler is wrapped so a throw returns a JSON-RPC `-32603` rather than Next's HTML error page — see the note below |
 | `mcp/writing-guide.ts` | New. The drafting brief, served to the model |
-| `mcp/tools.ts` | Added `get_writing_guide` (eight tools); split into scope-gated registration groups |
+| `mcp/tools.ts` | Added `get_writing_guide`, later `check_seo` (nine tools); split into scope-gated registration groups |
 | `mcp/sites.ts` | `SITES_ENABLED` allowlist, enforced in `resolveSite` |
 | `mcp/lib.ts` | Guarded `import.meta.dirname` so the module survives bundling |
 | `src/app/robots.ts` | Disallow `/api/mcp` and `/oauth` |
@@ -57,12 +57,26 @@ the SDK's own wire schemas.
 | `src/app/oauth/token/route.ts` | `authorization_code` + `refresh_token` grants |
 | `src/app/oauth/revoke/route.ts` | RFC 7009 revocation |
 | `src/lib/blog/authz.ts` | `safeAdminRedirect` allows `/oauth/authorize`, and is hardened |
-| `scripts/verify-mcp-oauth.mts` | New. 26-assertion end-to-end verification of the grant |
+| `scripts/verify-mcp-oauth.mts` | New. 31-assertion end-to-end verification of the grant |
 | `package.json` | `npm run verify:mcp-oauth` |
 
 **Removed:** `src/app/api/mcp/[secret]/route.ts` and `MCP_URL_SECRET`. The
 secret-in-URL credential is superseded by OAuth — see
 [§3.3](#33-choosing-an-auth-method-honestly).
+
+> **Errors leave as JSON-RPC, never as HTML.** `POST`/`GET`/`DELETE` each wrap
+> `handle()`, so anything thrown past the bearer check — tool registration,
+> `server.connect`, `transport.handleRequest` — comes back as
+> `{"jsonrpc":"2.0","error":{"code":-32603,...}}` with Next's `digest` attached
+> under `error.data` where one exists. Before this, an MCP client got
+> `<!DOCTYPE html>` and reported a parse failure, which hides the real cause and
+> fills logs with markup. **When a 500 does happen, quote the `digest`** — that
+> is what ties the response to a line in the platform logs.
+>
+> An HTML 500 from `/api/mcp` therefore means the failure is *below* this code —
+> the route never ran. Check the deployment, not the handler. `x-matched-path:
+> /500` in the response headers confirms it: the request never matched the
+> route at all.
 
 > ⚠️ `.env.example` documents `MCP_OAUTH_ENABLED` and `SITES_ENABLED`, but **that
 > file is untracked** — `.gitignore` line 34 is `.env*`, so the edit is local-only
@@ -161,8 +175,8 @@ printf '%s\n%s\n%s\n' \
   | npx tsx mcp/server.ts
 ```
 
-Expected: a `serverInfo` of `denalix-blog` v2.0.0, then **eight** tools —
-`list_sites`, `get_writing_guide`, `list_posts`, `check_slug`,
+Expected: a `serverInfo` of `denalix-blog` v2.0.0, then **nine** tools —
+`list_sites`, `get_writing_guide`, `list_posts`, `check_slug`, `check_seo`,
 `get_link_targets`, `suggest_internal_links`, `generate_cover_image`,
 `create_draft`. Each
 site-scoped tool's schema should list your real site keys in its `site`
@@ -444,7 +458,7 @@ curl -s localhost:3114/.well-known/oauth-authorization-server
 
 **The OAuth grant is verified too.** The migration was applied to project
 `vuqxdkbktdimzpyfiict` on 2026-08-10 and `npm run verify:mcp-oauth` passed
-**26/26** against the live database — see
+**31/31** against the live database — see
 [§3.4](#verifying-the-full-flow-once-the-migration-is-applied).
 
 > **`accept: application/json, text/event-stream` is required** on every POST.
@@ -665,6 +679,28 @@ tokens live 30 days and **rotate on every use**, with the replaced hash recorded
 as `parent_hash` — so presenting an already-rotated refresh token is detected as a
 replay and revokes the entire family, forcing re-authorization.
 
+**With one exception, and it is load-bearing:** a 60-second reuse grace window,
+`REFRESH_REUSE_GRACE_MS` in `store.ts`. Strict one-time-use assumes a single
+client process, and that assumption is false whenever a token store is shared —
+two editor windows, or an agent runner keeping its own copy. Both read the same
+stored token, one redeems it, and the loser's copy is already burned. Without the
+window that second request tore the grant down, the user was pushed back through
+consent, and the two processes raced again on the new token: an auth loop that
+sustains itself. It showed up in the wild as `InvalidGrantError: Refresh token
+has already been used` followed by a burst of authorize prompts.
+
+Inside the window a re-presentation mints a *fresh* pair on the same lineage
+rather than the winner's pair, which cannot be handed out again because only
+hashes are stored. Both callers end up with working, independently revocable
+credentials.
+
+The window is not a blanket amnesty. It applies only when the token has a **live
+successor**, which is what separates a token this server rotated from one killed
+by `/oauth/revoke` or by a family revocation — those have no successor, so
+replaying one is still caught and still revokes the family. Expiry is checked
+before the window, so it cannot resurrect an expired token. Replay after the
+window, or once the chain has moved on, behaves exactly as before.
+
 #### Scopes
 
 Two, split at the read/write boundary rather than per tool, because a consent
@@ -708,7 +744,7 @@ sequenceDiagram
     C->>A: 8. POST /token — code + code_verifier
     A-->>C: access_token (+ refresh_token)
     C->>M: 9. POST tools/list — Authorization: Bearer …
-    M-->>C: 10. verify iss/aud/exp against JWKS → eight tools
+    M-->>C: 10. verify iss/aud/exp against JWKS → nine tools
 ```
 
 **Step 2 is the one that breaks.** That `WWW-Authenticate` header is what
@@ -751,23 +787,25 @@ MCP_OAUTH_ENABLED=true SITES_ENABLED=denalixtech npx next start -p 3114
 npm run verify:mcp-oauth
 ```
 
-It exercises 26 assertions: dynamic registration, a wrong PKCE verifier being
+It exercises 31 assertions: dynamic registration, a wrong PKCE verifier being
 rejected *without* consuming the code, successful exchange, `token_type`/
 `expires_in`/`scope` in the response, **that the raw token is absent from
 `oauth_tokens` while its SHA-256 hash is present**, resource binding, the bearer
-call returning eight tools, single-use code enforcement, refresh rotation, scope
+call returning nine tools, single-use code enforcement, refresh rotation, scope
 narrowing on refresh, replay of a rotated refresh token revoking the whole family,
-scope gating (a `blog:read` token seeing six tools and no `create_draft`),
+**concurrent reuse inside the grace window being honoured without collateral
+damage to the winning client**, scope gating (a `blog:read` token seeing seven
+tools and no `create_draft`),
 immediate revocation, and revoking an unknown token still returning 200 so the
 endpoint is not an oracle.
 
-It creates two throwaway clients and deletes them afterwards, including on
+It creates three throwaway clients and deletes them afterwards, including on
 failure.
 
-**Result, 2026-08-10: 26/26 passed** against project `vuqxdkbktdimzpyfiict`,
+**Result, 2026-08-24: 31/31 passed** against project `vuqxdkbktdimzpyfiict`,
 including the two assertions that matter most for credential hygiene — the raw
 token is absent from `oauth_tokens` while its SHA-256 hash is present, and every
-token is bound to the MCP resource. Both test clients were removed; `oauth_clients`,
+token is bound to the MCP resource. All test clients were removed; `oauth_clients`,
 `oauth_authorization_codes`, and `oauth_tokens` were all left at zero rows.
 
 The consent path was checked separately by hand, since the script cannot drive a

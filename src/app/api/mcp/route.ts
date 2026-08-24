@@ -51,6 +51,41 @@ function unauthorized(status: 401 | 403, code: string, description: string): Res
   );
 }
 
+/**
+ * A JSON-RPC internal error, so a failure reaches the client as protocol rather
+ * than as Next's HTML error page.
+ *
+ * An MCP client handed `<!DOCTYPE html>` reports a parse failure, or dumps the
+ * whole document into a log, and either way the actual cause is invisible. The
+ * `digest` is Next's own correlation id where one is available — quoting it in a
+ * bug report is what ties the response to a line in the platform logs.
+ */
+function internalError(error: unknown, requestId: unknown = null): Response {
+  const digest =
+    typeof error === "object" && error !== null && "digest" in error
+      ? String((error as { digest?: unknown }).digest)
+      : undefined;
+
+  console.error("[mcp] unhandled error", {
+    message: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined,
+    digest,
+  });
+
+  return Response.json(
+    {
+      jsonrpc: "2.0",
+      id: requestId ?? null,
+      error: {
+        code: -32603,
+        message: "Internal error",
+        ...(digest ? { data: { digest } } : {}),
+      },
+    },
+    { status: 500, headers: { "cache-control": "no-store" } },
+  );
+}
+
 async function handle(request: Request): Promise<Response> {
   // Nothing is exposed until OAuth is deliberately switched on, so deploying
   // this code does not by itself open a write path into the database.
@@ -99,17 +134,49 @@ async function handle(request: Request): Promise<Response> {
   return transport.handleRequest(request, { authInfo: auth.authInfo });
 }
 
+/**
+ * Best-effort recovery of the JSON-RPC id from a clone of the request.
+ *
+ * A client waiting on id 7 will not match an error carrying null, and sits there
+ * until it times out instead of surfacing the failure. The clone is taken before
+ * the original is consumed, so reading it here costs nothing that the handler
+ * needed.
+ */
+async function requestIdOf(request: Request): Promise<unknown> {
+  try {
+    const body = await request.json();
+    return body && typeof body === "object" && "id" in body
+      ? (body as { id: unknown }).id
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 /** JSON-RPC requests. */
 export async function POST(request: Request): Promise<Response> {
-  return handle(request);
+  const echo = request.clone();
+  try {
+    return await handle(request);
+  } catch (error) {
+    return internalError(error, await requestIdOf(echo));
+  }
 }
 
 /** The server-to-client SSE stream. */
 export async function GET(request: Request): Promise<Response> {
-  return handle(request);
+  try {
+    return await handle(request);
+  } catch (error) {
+    return internalError(error);
+  }
 }
 
 /** Session teardown. A no-op in stateless mode, but clients may still send it. */
 export async function DELETE(request: Request): Promise<Response> {
-  return handle(request);
+  try {
+    return await handle(request);
+  } catch (error) {
+    return internalError(error);
+  }
 }
